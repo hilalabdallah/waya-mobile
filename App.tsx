@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Modal,
@@ -13,7 +13,7 @@ import {
   Text,
   View,
 } from "react-native";
-import MapView, { Marker, PROVIDER_GOOGLE, Region } from "react-native-maps";
+import MapView, { Marker, Region } from "react-native-maps";
 
 type ViewName = "people" | "missions" | "profile";
 
@@ -174,12 +174,17 @@ const people = [
 ];
 
 const mapStyle = [
-  { elementType: "geometry", stylers: [{ color: "#f5fff9" }] },
-  { featureType: "water", elementType: "geometry", stylers: [{ color: "#cff8ee" }] },
-  { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#d8ffe9" }] },
+  { elementType: "geometry", stylers: [{ color: "#fbfff9" }] },
+  { featureType: "poi", elementType: "labels.icon", stylers: [{ visibility: "off" }] },
+  { featureType: "poi.business", stylers: [{ visibility: "off" }] },
+  { featureType: "transit", stylers: [{ visibility: "off" }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#c9f8ec" }] },
+  { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#dcffeb" }] },
   { featureType: "road", elementType: "geometry", stylers: [{ color: "#ffffff" }] },
-  { featureType: "landscape.man_made", elementType: "geometry", stylers: [{ color: "#ffe0ef" }] },
-  { elementType: "labels.text.fill", stylers: [{ color: "#7c7c7c" }] },
+  { featureType: "road", elementType: "labels.text.fill", stylers: [{ color: "#878787" }] },
+  { featureType: "landscape.man_made", elementType: "geometry", stylers: [{ color: "#ffe8f4" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#777777" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#ffffff" }] },
 ];
 
 const initialRegion: Region = {
@@ -218,6 +223,7 @@ function distanceMeters(
 }
 
 export default function App() {
+  const mapRef = useRef<MapView | null>(null);
   const [view, setView] = useState<ViewName>("missions");
   const [aura, setAura] = useState(320);
   const [completed, setCompleted] = useState<number[]>([]);
@@ -261,6 +267,22 @@ export default function App() {
     const progress: SavedProgress = { aura, completed, photoProofs };
     AsyncStorage.setItem(storageKey, JSON.stringify(progress));
   }, [aura, completed, loaded, photoProofs]);
+
+  useEffect(() => {
+    if (!userLocation || !mapRef.current) {
+      return;
+    }
+
+    mapRef.current.animateToRegion(
+      {
+        latitude: userLocation.latitude,
+        longitude: userLocation.longitude,
+        latitudeDelta: 0.012,
+        longitudeDelta: 0.012,
+      },
+      650,
+    );
+  }, [userLocation]);
 
   async function refreshLocation(showError = true) {
     const permission = await Location.requestForegroundPermissionsAsync();
@@ -373,17 +395,22 @@ export default function App() {
             <View style={styles.mapShell}>
               <MapView
                 customMapStyle={mapStyle}
+                loadingBackgroundColor="#ffffff"
+                loadingEnabled
+                loadingIndicatorColor="#ff4fa3"
                 initialRegion={
                   userLocation
                     ? {
                         latitude: userLocation.latitude,
                         longitude: userLocation.longitude,
-                        latitudeDelta: 0.014,
-                        longitudeDelta: 0.014,
+                        latitudeDelta: 0.012,
+                        longitudeDelta: 0.012,
                       }
                     : initialRegion
                 }
-                provider={PROVIDER_GOOGLE}
+                pitchEnabled
+                ref={mapRef}
+                rotateEnabled={false}
                 showsUserLocation
                 style={styles.map}
               >
@@ -395,16 +422,12 @@ export default function App() {
                     }}
                     key={mission.id}
                     onPress={() => openMission(mission)}
+                    tracksViewChanges={false}
                   >
-                    <View
-                      style={[
-                        styles.marker,
-                        completed.includes(mission.id) && styles.markerDone,
-                        mission.difficulty === "Speciale" && styles.markerSpecial,
-                      ]}
-                    >
-                      <Text style={styles.markerIcon}>🚶</Text>
-                    </View>
+                    <MissionMarker
+                      done={completed.includes(mission.id)}
+                      special={mission.difficulty === "Speciale"}
+                    />
                   </Marker>
                 ))}
               </MapView>
@@ -622,6 +645,20 @@ function ProfileStat({ label, value }: { label: string; value: string }) {
   );
 }
 
+function MissionMarker({ done, special }: { done: boolean; special: boolean }) {
+  return (
+    <View style={[styles.markerHalo, special && styles.markerHaloSpecial]}>
+      <View style={[styles.marker, done && styles.markerDone]}>
+        <View style={styles.walkerHead} />
+        <View style={styles.walkerBody} />
+        <View style={styles.walkerArm} />
+        <View style={styles.walkerLegLeft} />
+        <View style={styles.walkerLegRight} />
+      </View>
+    </View>
+  );
+}
+
 function Tab({
   active,
   label,
@@ -640,7 +677,7 @@ function Tab({
 
 const styles = StyleSheet.create({
   app: {
-    backgroundColor: "#ffffff",
+    backgroundColor: "#fbfcfc",
     flex: 1,
   },
   aura: {
@@ -691,9 +728,9 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   header: {
-    backgroundColor: "#ffffff",
+    backgroundColor: "#fbfcfc",
     paddingHorizontal: 18,
-    paddingTop: 8,
+    paddingTop: 6,
   },
   identity: {
     alignItems: "center",
@@ -702,7 +739,7 @@ const styles = StyleSheet.create({
   },
   logo: {
     color: "#ff4fa3",
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: "900",
     letterSpacing: 1,
   },
@@ -714,31 +751,40 @@ const styles = StyleSheet.create({
     borderRadius: 34,
     borderWidth: 6,
     flex: 1,
-    marginBottom: 88,
-    marginHorizontal: 12,
+    marginBottom: 92,
+    marginHorizontal: 10,
     overflow: "hidden",
+    shadowColor: "#000000",
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
   },
   marker: {
     alignItems: "center",
     backgroundColor: "#ff4fa3",
-    borderRadius: 22,
-    height: 44,
+    borderRadius: 18,
+    height: 36,
     justifyContent: "center",
     shadowColor: "#ff4fa3",
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    width: 44,
+    shadowOpacity: 0.28,
+    shadowRadius: 8,
+    width: 36,
   },
   markerDone: {
     backgroundColor: "#17e689",
   },
-  markerIcon: {
-    color: "#ffffff",
-    fontSize: 22,
+  markerHalo: {
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.82)",
+    borderRadius: 22,
+    height: 44,
+    justifyContent: "center",
+    shadowColor: "#000000",
+    shadowOpacity: 0.16,
+    shadowRadius: 8,
+    width: 44,
   },
-  markerSpecial: {
-    borderColor: "rgba(255,255,255,0.9)",
-    borderWidth: 2,
+  markerHaloSpecial: {
+    backgroundColor: "rgba(255,79,163,0.18)",
   },
   modalBackdrop: {
     backgroundColor: "rgba(0,0,0,0.25)",
@@ -801,7 +847,7 @@ const styles = StyleSheet.create({
   nav: {
     backgroundColor: "#ffffff",
     borderRadius: 34,
-    bottom: 18,
+    bottom: 20,
     elevation: 8,
     flexDirection: "row",
     gap: 4,
@@ -953,7 +999,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     flexDirection: "row",
     gap: 10,
-    marginTop: 18,
+    marginTop: 16,
     padding: 12,
   },
   progressFill: {
@@ -1020,7 +1066,7 @@ const styles = StyleSheet.create({
   },
   screen: {
     flex: 1,
-    paddingTop: 12,
+    paddingTop: 10,
   },
   scrollScreen: {
     backgroundColor: "#f7f8f7",
@@ -1071,5 +1117,52 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexDirection: "row",
     justifyContent: "space-between",
+  },
+  walkerArm: {
+    backgroundColor: "#ffffff",
+    borderRadius: 5,
+    height: 4,
+    left: 11,
+    position: "absolute",
+    top: 17,
+    transform: [{ rotate: "-28deg" }],
+    width: 16,
+  },
+  walkerBody: {
+    backgroundColor: "#ffffff",
+    borderRadius: 4,
+    height: 13,
+    position: "absolute",
+    top: 12,
+    transform: [{ rotate: "12deg" }],
+    width: 5,
+  },
+  walkerHead: {
+    backgroundColor: "#ffffff",
+    borderRadius: 5,
+    height: 8,
+    position: "absolute",
+    top: 7,
+    width: 8,
+  },
+  walkerLegLeft: {
+    backgroundColor: "#ffffff",
+    borderRadius: 4,
+    height: 5,
+    left: 11,
+    position: "absolute",
+    top: 25,
+    transform: [{ rotate: "-28deg" }],
+    width: 13,
+  },
+  walkerLegRight: {
+    backgroundColor: "#ffffff",
+    borderRadius: 4,
+    height: 5,
+    position: "absolute",
+    right: 10,
+    top: 25,
+    transform: [{ rotate: "34deg" }],
+    width: 13,
   },
 });
