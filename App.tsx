@@ -13,7 +13,7 @@ import {
   Text,
   View,
 } from "react-native";
-import MapView, { Marker, Region } from "react-native-maps";
+import Mapbox from "@rnmapbox/maps";
 
 type ViewName = "people" | "missions" | "profile";
 type LeaderboardMode = "friends" | "public";
@@ -40,6 +40,9 @@ type SavedProgress = {
 };
 
 const storageKey = "waya-mobile-progress-v1";
+const mapboxToken = process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? "";
+
+Mapbox.setAccessToken(mapboxToken);
 
 const ranks = [
   { name: "Inconnu", aura: 0 },
@@ -182,29 +185,117 @@ const publicPeople = [
   { name: "@ness", rank: "Random", aura: 0, isUser: true },
 ];
 
-const mapStyle = [
-  { elementType: "geometry", stylers: [{ color: "#ffd9ee" }] },
-  { featureType: "administrative.locality", elementType: "labels.text.fill", stylers: [{ color: "#101214" }] },
-  { featureType: "poi", elementType: "labels.icon", stylers: [{ visibility: "off" }] },
-  { featureType: "poi.business", stylers: [{ visibility: "off" }] },
-  { featureType: "transit", stylers: [{ visibility: "off" }] },
-  { featureType: "water", elementType: "geometry", stylers: [{ color: "#b4f7e5" }] },
-  { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#bff5d3" }] },
-  { featureType: "road", elementType: "geometry", stylers: [{ color: "#fffefe" }] },
-  { featureType: "road.arterial", elementType: "geometry", stylers: [{ color: "#ffeaf5" }] },
-  { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#fff7fb" }] },
-  { featureType: "road", elementType: "labels.text.fill", stylers: [{ color: "#6f6f76" }] },
-  { featureType: "landscape.man_made", elementType: "geometry", stylers: [{ color: "#ffc9e5" }] },
-  { featureType: "landscape.natural", elementType: "geometry", stylers: [{ color: "#dfffee" }] },
-  { elementType: "labels.text.fill", stylers: [{ color: "#69696d" }] },
-  { elementType: "labels.text.stroke", stylers: [{ color: "#ffffff" }] },
-];
+const wayaMapStyle = {
+  version: 8,
+  name: "WAYA Rose Green",
+  sources: {
+    streets: {
+      type: "vector",
+      url: "mapbox://mapbox.mapbox-streets-v8",
+    },
+  },
+  glyphs: "mapbox://fonts/mapbox/{fontstack}/{range}.pbf",
+  layers: [
+    {
+      id: "background",
+      type: "background",
+      paint: { "background-color": "#ffd8ec" },
+    },
+    {
+      id: "land",
+      type: "fill",
+      source: "streets",
+      "source-layer": "landuse",
+      paint: { "fill-color": "#ffe4f2" },
+    },
+    {
+      id: "parks",
+      type: "fill",
+      source: "streets",
+      "source-layer": "landuse",
+      filter: ["in", "class", "park", "grass", "wood"],
+      paint: { "fill-color": "#bff6d5", "fill-opacity": 0.9 },
+    },
+    {
+      id: "water",
+      type: "fill",
+      source: "streets",
+      "source-layer": "water",
+      paint: { "fill-color": "#b8f7e5" },
+    },
+    {
+      id: "roads-base",
+      type: "line",
+      source: "streets",
+      "source-layer": "road",
+      paint: {
+        "line-color": "#ffffff",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 12, 1.2, 16, 7],
+      },
+    },
+    {
+      id: "roads-pink",
+      type: "line",
+      source: "streets",
+      "source-layer": "road",
+      filter: ["in", "class", "primary", "secondary", "tertiary"],
+      paint: {
+        "line-color": "#ffeaf5",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 12, 1.4, 16, 9],
+      },
+    },
+    {
+      id: "buildings-3d",
+      type: "fill-extrusion",
+      source: "streets",
+      "source-layer": "building",
+      minzoom: 13,
+      paint: {
+        "fill-extrusion-color": "#f3a8cb",
+        "fill-extrusion-height": ["interpolate", ["linear"], ["zoom"], 13, 4, 16, 24],
+        "fill-extrusion-base": 0,
+        "fill-extrusion-opacity": 0.72,
+      },
+    },
+    {
+      id: "road-labels",
+      type: "symbol",
+      source: "streets",
+      "source-layer": "road",
+      layout: {
+        "symbol-placement": "line",
+        "text-field": ["get", "name"],
+        "text-font": ["Open Sans Semibold", "Arial Unicode MS Regular"],
+        "text-size": ["interpolate", ["linear"], ["zoom"], 12, 10, 16, 14],
+      },
+      paint: {
+        "text-color": "#6d6870",
+        "text-halo-color": "#ffffff",
+        "text-halo-width": 1.3,
+      },
+    },
+    {
+      id: "place-labels",
+      type: "symbol",
+      source: "streets",
+      "source-layer": "place_label",
+      layout: {
+        "text-field": ["get", "name"],
+        "text-font": ["Open Sans Bold", "Arial Unicode MS Regular"],
+        "text-size": ["interpolate", ["linear"], ["zoom"], 10, 14, 15, 20],
+      },
+      paint: {
+        "text-color": "#101214",
+        "text-halo-color": "#ffffff",
+        "text-halo-width": 1.4,
+      },
+    },
+  ],
+};
 
-const initialRegion: Region = {
+const initialLocation = {
   latitude: 46.6743,
   longitude: 4.3633,
-  latitudeDelta: 0.032,
-  longitudeDelta: 0.032,
 };
 
 function getRank(aura: number) {
@@ -236,7 +327,7 @@ function distanceMeters(
 }
 
 export default function App() {
-  const mapRef = useRef<MapView | null>(null);
+  const mapRef = useRef<Mapbox.MapView | null>(null);
   const [view, setView] = useState<ViewName>("missions");
   const [leaderboardMode, setLeaderboardMode] = useState<LeaderboardMode>("friends");
   const [aura, setAura] = useState(320);
@@ -255,8 +346,8 @@ export default function App() {
   }, 0);
   const leaderboard = leaderboardMode === "friends" ? people : publicPeople;
   const userCoordinate = {
-    latitude: userLocation?.latitude ?? initialRegion.latitude,
-    longitude: userLocation?.longitude ?? initialRegion.longitude,
+    latitude: userLocation?.latitude ?? initialLocation.latitude,
+    longitude: userLocation?.longitude ?? initialLocation.longitude,
   };
   const nearbyMissions = useMemo(
     () =>
@@ -300,19 +391,9 @@ export default function App() {
   }, [aura, completed, loaded, photoProofs]);
 
   useEffect(() => {
-    if (!userLocation || !mapRef.current) {
+    if (!userLocation) {
       return;
     }
-
-    mapRef.current.animateToRegion(
-      {
-        latitude: userLocation.latitude,
-        longitude: userLocation.longitude,
-        latitudeDelta: 0.032,
-        longitudeDelta: 0.032,
-      },
-      650,
-    );
   }, [userLocation]);
 
   async function refreshLocation(showError = true) {
@@ -424,47 +505,45 @@ export default function App() {
         {view === "missions" && (
           <View style={styles.screen}>
             <View style={styles.mapShell}>
-              <MapView
-                customMapStyle={mapStyle}
-                loadingBackgroundColor="#ffffff"
-                loadingEnabled
-                loadingIndicatorColor="#ff4fa3"
-                initialRegion={
-                  userLocation
-                    ? {
-                        latitude: userLocation.latitude,
-                        longitude: userLocation.longitude,
-                        latitudeDelta: 0.032,
-                        longitudeDelta: 0.032,
-                      }
-                    : initialRegion
-                }
-                pitchEnabled
+              <Mapbox.MapView
+                attributionEnabled={false}
+                compassEnabled={false}
+                logoEnabled={false}
                 ref={mapRef}
-                rotateEnabled={false}
-                showsUserLocation={false}
+                scaleBarEnabled={false}
                 style={styles.map}
+                styleJSON={JSON.stringify(wayaMapStyle)}
               >
-                <Marker coordinate={userCoordinate} onPress={() => setNearbyOpen(true)} tracksViewChanges={false}>
+                <Mapbox.Camera
+                  animationDuration={650}
+                  animationMode="flyTo"
+                  centerCoordinate={[userCoordinate.longitude, userCoordinate.latitude]}
+                  pitch={58}
+                  zoomLevel={13.5}
+                />
+
+                <Mapbox.PointAnnotation
+                  coordinate={[userCoordinate.longitude, userCoordinate.latitude]}
+                  id="user-location"
+                  onSelected={() => setNearbyOpen(true)}
+                >
                   <UserMarker />
-                </Marker>
+                </Mapbox.PointAnnotation>
+
                 {missions.map((mission) => (
-                  <Marker
-                    coordinate={{
-                      latitude: mission.latitude,
-                      longitude: mission.longitude,
-                    }}
+                  <Mapbox.PointAnnotation
+                    coordinate={[mission.longitude, mission.latitude]}
+                    id={`mission-${mission.id}`}
                     key={mission.id}
-                    onPress={() => openMission(mission)}
-                    tracksViewChanges={false}
+                    onSelected={() => openMission(mission)}
                   >
                     <MissionMarker
                       done={completed.includes(mission.id)}
                       special={mission.difficulty === "Speciale"}
                     />
-                  </Marker>
+                  </Mapbox.PointAnnotation>
                 ))}
-              </MapView>
+              </Mapbox.MapView>
             </View>
           </View>
         )}
