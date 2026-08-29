@@ -1,0 +1,34 @@
+{
+  "expo": {
+    "name": "WAYA",
+    "slug": "waya-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "waya",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "WAYA utilise ta position pour valider les missions proches de toi.",
+        "NSCameraUsageDescription": "WAYA utilise l'appareil photo pour ajouter une preuve de mission.",
+        "NSPhotoLibraryUsageDescription": "WAYA peut choisir une photo comme preuve de mission."
+      }
+    },
+    "android": {
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA",
+        "READ_MEDIA_IMAGES"
+      ],
+      "adaptiveIcon": {
+        "backgroundColor": "#ffffff"
+      }
+    },
+    "plugins": [
+      "expo-location",
+      "expo-image-picker"
+    ]
+  }
+}
