@@ -463,12 +463,27 @@ export default function App() {
         {view === "profile" && (
           <ScrollView contentContainerStyle={styles.scrollScreen}>
             <View style={styles.profileHero}>
-              <View style={styles.profileAvatar}>
-                <Text style={styles.profileAvatarText}>N</Text>
+              <View style={styles.profileHeroTop}>
+                <View style={styles.profileAvatar}>
+                  <Text style={styles.profileAvatarText}>N</Text>
+                </View>
+                <View style={styles.profileIdentity}>
+                  <Text style={styles.profileHandle}>@ness</Text>
+                  <Text style={styles.profileRank}>{rank.current.name}</Text>
+                </View>
               </View>
-              <View>
-                <Text style={styles.profileHandle}>@ness</Text>
-                <Text style={styles.profileRank}>{rank.current.name}</Text>
+
+              <View style={styles.profileRankPanel}>
+                <View style={styles.profileRankPanelTop}>
+                  <Text style={styles.profileRankPanelLabel}>Prochain rang</Text>
+                  <Text style={styles.profileRankPanelNext}>{rank.next?.name ?? "Max"}</Text>
+                </View>
+                <View style={styles.profileHeroTrack}>
+                  <View style={[styles.profileHeroFill, { width: `${rank.progress}%` }]} />
+                </View>
+                <Text style={styles.profileRankMissing}>
+                  {rank.next ? `${rank.needed} aura manquante` : "Rang maximum atteint"}
+                </Text>
               </View>
             </View>
 
@@ -959,12 +974,56 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   profileHero: {
-    alignItems: "center",
     backgroundColor: "#101214",
     borderRadius: 32,
+    gap: 22,
+    padding: 20,
+  },
+  profileHeroTop: {
+    alignItems: "center",
     flexDirection: "row",
     gap: 16,
-    padding: 20,
+  },
+  profileIdentity: {
+    flex: 1,
+  },
+  profileRankPanel: {
+    backgroundColor: "rgba(255,255,255,0.1)",
+    borderRadius: 26,
+    padding: 16,
+  },
+  profileRankPanelTop: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 14,
+  },
+  profileRankPanelLabel: {
+    color: "rgba(255,255,255,0.52)",
+    fontSize: 15,
+    fontWeight: "900",
+  },
+  profileRankPanelNext: {
+    color: "#ffffff",
+    fontSize: 18,
+    fontWeight: "900",
+  },
+  profileHeroTrack: {
+    backgroundColor: "rgba(255,255,255,0.16)",
+    borderRadius: 999,
+    height: 10,
+    overflow: "hidden",
+  },
+  profileHeroFill: {
+    backgroundColor: "#ff4fa3",
+    borderRadius: 999,
+    height: "100%",
+  },
+  profileRankMissing: {
+    color: "rgba(255,255,255,0.52)",
+    fontSize: 13,
+    fontWeight: "900",
+    marginTop: 10,
   },
   profileRank: {
     color: "#ffffff",
@@ -976,9 +1035,9 @@ const styles = StyleSheet.create({
     borderColor: "rgba(0,0,0,0.06)",
     borderRadius: 24,
     borderWidth: 1,
-    flex: 1,
     minHeight: 110,
     padding: 16,
+    width: "48%",
   },
   profileStatLabel: {
     color: "rgba(0,0,0,0.45)",
@@ -1095,6 +1154,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 12,
+    justifyContent: "space-between",
   },
   tab: {
     alignItems: "center",
