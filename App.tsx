@@ -16,6 +16,7 @@ import {
 import MapView, { Marker, Region } from "react-native-maps";
 
 type ViewName = "people" | "missions" | "profile";
+type LeaderboardMode = "friends" | "public";
 
 type Mission = {
   id: number;
@@ -173,16 +174,27 @@ const people = [
   { name: "@plessis.run", rank: "Random", aura: 760 },
 ];
 
+const publicPeople = [
+  { name: "@montceau.ghost", rank: "Monstre", aura: 8120 },
+  { name: "@canalrunner", rank: "Phenomene", aura: 5440 },
+  { name: "@mcy.maya", rank: "Phenomene", aura: 5280 },
+  { name: "@saintvallier7", rank: "Vaillant", aura: 3370 },
+  { name: "@ness", rank: "Random", aura: 0, isUser: true },
+];
+
 const mapStyle = [
-  { elementType: "geometry", stylers: [{ color: "#fbfff9" }] },
+  { elementType: "geometry", stylers: [{ color: "#fff3fa" }] },
+  { featureType: "administrative.locality", elementType: "labels.text.fill", stylers: [{ color: "#101214" }] },
   { featureType: "poi", elementType: "labels.icon", stylers: [{ visibility: "off" }] },
   { featureType: "poi.business", stylers: [{ visibility: "off" }] },
   { featureType: "transit", stylers: [{ visibility: "off" }] },
-  { featureType: "water", elementType: "geometry", stylers: [{ color: "#c9f8ec" }] },
-  { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#dcffeb" }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#bff8e8" }] },
+  { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#ccf7dd" }] },
   { featureType: "road", elementType: "geometry", stylers: [{ color: "#ffffff" }] },
-  { featureType: "road", elementType: "labels.text.fill", stylers: [{ color: "#878787" }] },
-  { featureType: "landscape.man_made", elementType: "geometry", stylers: [{ color: "#ffe8f4" }] },
+  { featureType: "road.arterial", elementType: "geometry", stylers: [{ color: "#ffe1f0" }] },
+  { featureType: "road", elementType: "labels.text.fill", stylers: [{ color: "#77777d" }] },
+  { featureType: "landscape.man_made", elementType: "geometry", stylers: [{ color: "#ffd8ec" }] },
+  { featureType: "landscape.natural", elementType: "geometry", stylers: [{ color: "#e8fff1" }] },
   { elementType: "labels.text.fill", stylers: [{ color: "#777777" }] },
   { elementType: "labels.text.stroke", stylers: [{ color: "#ffffff" }] },
 ];
@@ -190,8 +202,8 @@ const mapStyle = [
 const initialRegion: Region = {
   latitude: 46.6743,
   longitude: 4.3633,
-  latitudeDelta: 0.018,
-  longitudeDelta: 0.018,
+  latitudeDelta: 0.032,
+  longitudeDelta: 0.032,
 };
 
 function getRank(aura: number) {
@@ -225,6 +237,7 @@ function distanceMeters(
 export default function App() {
   const mapRef = useRef<MapView | null>(null);
   const [view, setView] = useState<ViewName>("missions");
+  const [leaderboardMode, setLeaderboardMode] = useState<LeaderboardMode>("friends");
   const [aura, setAura] = useState(320);
   const [completed, setCompleted] = useState<number[]>([]);
   const [activeMission, setActiveMission] = useState<Mission | null>(null);
@@ -238,6 +251,7 @@ export default function App() {
     const mission = missions.find((item) => item.id === id);
     return total + (mission?.duration ?? 0);
   }, 0);
+  const leaderboard = leaderboardMode === "friends" ? people : publicPeople;
 
   useEffect(() => {
     async function loadProgress() {
@@ -277,8 +291,8 @@ export default function App() {
       {
         latitude: userLocation.latitude,
         longitude: userLocation.longitude,
-        latitudeDelta: 0.012,
-        longitudeDelta: 0.012,
+        latitudeDelta: 0.032,
+        longitudeDelta: 0.032,
       },
       650,
     );
@@ -388,7 +402,7 @@ export default function App() {
     <SafeAreaView style={styles.safe}>
       <StatusBar style="dark" />
       <View style={styles.app}>
-        <Header aura={aura} rank={rank} />
+        {view === "missions" && <Header aura={aura} rank={rank} />}
 
         {view === "missions" && (
           <View style={styles.screen}>
@@ -403,8 +417,8 @@ export default function App() {
                     ? {
                         latitude: userLocation.latitude,
                         longitude: userLocation.longitude,
-                        latitudeDelta: 0.012,
-                        longitudeDelta: 0.012,
+                        latitudeDelta: 0.032,
+                        longitudeDelta: 0.032,
                       }
                     : initialRegion
                 }
@@ -438,11 +452,14 @@ export default function App() {
         {view === "people" && (
           <ScrollView contentContainerStyle={styles.scrollScreen}>
             <View style={styles.dailyCard}>
-              <Text style={styles.dailyTitle}>Le scroll t'a assez garde en otage.</Text>
-              <Text style={styles.dailyText}>Va prendre de l'aura. Montceau ne va pas se traverser toute seule.</Text>
+              <Text style={styles.dailyTitle}>
+                Le scroll t'a assez garde en otage. Va prendre de l'aura. Montceau ne va pas se traverser toute seule.
+              </Text>
             </View>
 
-            {people
+            <PeopleSwitch mode={leaderboardMode} setMode={setLeaderboardMode} />
+
+            {leaderboard
               .map((person) => (person.isUser ? { ...person, aura, rank: rank.current.name } : person))
               .sort((a, b) => b.aura - a.aura)
               .map((person, index) => (
@@ -674,6 +691,31 @@ function MissionMarker({ done, special }: { done: boolean; special: boolean }) {
   );
 }
 
+function PeopleSwitch({
+  mode,
+  setMode,
+}: {
+  mode: LeaderboardMode;
+  setMode: (mode: LeaderboardMode) => void;
+}) {
+  return (
+    <View style={styles.peopleSwitch}>
+      <Pressable
+        onPress={() => setMode("friends")}
+        style={[styles.peopleSwitchTab, mode === "friends" && styles.peopleSwitchTabActive]}
+      >
+        <Text style={[styles.peopleSwitchText, mode === "friends" && styles.peopleSwitchTextActive]}>Amis</Text>
+      </Pressable>
+      <Pressable
+        onPress={() => setMode("public")}
+        style={[styles.peopleSwitchTab, mode === "public" && styles.peopleSwitchTabActive]}
+      >
+        <Text style={[styles.peopleSwitchText, mode === "public" && styles.peopleSwitchTextActive]}>Publics</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 function Tab({
   active,
   label,
@@ -720,9 +762,9 @@ const styles = StyleSheet.create({
   },
   dailyCard: {
     backgroundColor: "#ff4fa3",
-    borderRadius: 28,
-    marginBottom: 16,
-    padding: 18,
+    borderRadius: 24,
+    marginBottom: 2,
+    padding: 16,
   },
   dailyText: {
     color: "rgba(255,255,255,0.82)",
@@ -732,9 +774,9 @@ const styles = StyleSheet.create({
   },
   dailyTitle: {
     color: "#ffffff",
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: "900",
-    lineHeight: 28,
+    lineHeight: 23,
   },
   handle: {
     color: "rgba(0,0,0,0.45)",
@@ -751,12 +793,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexDirection: "row",
     gap: 10,
+    zIndex: 1,
   },
   logo: {
     color: "#ff4fa3",
-    fontSize: 26,
-    fontWeight: "900",
-    letterSpacing: 1,
+    fontSize: 28,
+    fontStyle: "italic",
+    fontWeight: "800",
+    left: 0,
+    letterSpacing: 0.2,
+    position: "absolute",
+    right: 0,
+    textAlign: "center",
   },
   map: {
     flex: 1,
@@ -807,14 +855,14 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   modalCard: {
-    backgroundColor: "#101214",
+    backgroundColor: "#ffffff",
     borderTopLeftRadius: 34,
     borderTopRightRadius: 34,
     padding: 20,
     paddingBottom: 34,
   },
   modalDetail: {
-    color: "rgba(255,255,255,0.68)",
+    color: "rgba(0,0,0,0.58)",
     fontSize: 15,
     fontWeight: "700",
     lineHeight: 23,
@@ -829,7 +877,7 @@ const styles = StyleSheet.create({
   },
   modalHandle: {
     alignSelf: "center",
-    backgroundColor: "rgba(255,255,255,0.25)",
+    backgroundColor: "rgba(0,0,0,0.16)",
     borderRadius: 20,
     height: 5,
     marginBottom: 18,
@@ -849,7 +897,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   modalTitle: {
-    color: "#ffffff",
+    color: "#101214",
     fontSize: 28,
     fontWeight: "900",
     marginTop: 8,
@@ -907,9 +955,39 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "800",
   },
+  peopleSwitch: {
+    alignSelf: "flex-start",
+    backgroundColor: "#ffffff",
+    borderColor: "rgba(0,0,0,0.06)",
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 4,
+    marginBottom: 6,
+    padding: 5,
+    shadowColor: "#000000",
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+  },
+  peopleSwitchTab: {
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  peopleSwitchTabActive: {
+    backgroundColor: "#101214",
+  },
+  peopleSwitchText: {
+    color: "rgba(0,0,0,0.45)",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  peopleSwitchTextActive: {
+    color: "#ffffff",
+  },
   photoButton: {
-    backgroundColor: "rgba(255,255,255,0.1)",
-    borderColor: "rgba(255,255,255,0.2)",
+    backgroundColor: "#fff2f8",
+    borderColor: "rgba(255,79,163,0.35)",
     borderRadius: 20,
     borderStyle: "dashed",
     borderWidth: 1,
@@ -917,13 +995,13 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   photoText: {
-    color: "rgba(255,255,255,0.45)",
+    color: "rgba(0,0,0,0.5)",
     fontSize: 12,
     fontWeight: "800",
     marginTop: 4,
   },
   photoTitle: {
-    color: "#ffffff",
+    color: "#101214",
     fontSize: 15,
     fontWeight: "900",
   },
@@ -1134,18 +1212,18 @@ const styles = StyleSheet.create({
     paddingBottom: 118,
   },
   smallStat: {
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: "#f4fff9",
     borderRadius: 18,
     flex: 1,
     padding: 10,
   },
   smallStatLabel: {
-    color: "rgba(255,255,255,0.48)",
+    color: "rgba(0,0,0,0.45)",
     fontSize: 11,
     fontWeight: "800",
   },
   smallStatValue: {
-    color: "#ffffff",
+    color: "#101214",
     fontSize: 14,
     fontWeight: "900",
     marginTop: 5,
@@ -1177,6 +1255,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexDirection: "row",
     justifyContent: "space-between",
+    minHeight: 44,
+    position: "relative",
   },
   walkerArm: {
     backgroundColor: "#ffffff",
