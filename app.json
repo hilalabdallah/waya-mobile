@@ -15,7 +15,8 @@
         "NSLocationWhenInUseUsageDescription": "WAYA utilise ta position pour valider les missions proches de toi.",
         "NSCameraUsageDescription": "WAYA utilise l'appareil photo pour ajouter une preuve de mission.",
         "NSPhotoLibraryUsageDescription": "WAYA peut choisir une photo comme preuve de mission."
-      }
+      },
+      "bundleIdentifier": "com.nasrinein.wayamobile"
     },
     "android": {
       "permissions": [
@@ -26,7 +27,8 @@
       ],
       "adaptiveIcon": {
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.nasrine_in.wayamobile"
     },
     "plugins": [
       "expo-location",
