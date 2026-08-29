@@ -183,19 +183,20 @@ const publicPeople = [
 ];
 
 const mapStyle = [
-  { elementType: "geometry", stylers: [{ color: "#fff3fa" }] },
+  { elementType: "geometry", stylers: [{ color: "#ffd9ee" }] },
   { featureType: "administrative.locality", elementType: "labels.text.fill", stylers: [{ color: "#101214" }] },
   { featureType: "poi", elementType: "labels.icon", stylers: [{ visibility: "off" }] },
   { featureType: "poi.business", stylers: [{ visibility: "off" }] },
   { featureType: "transit", stylers: [{ visibility: "off" }] },
-  { featureType: "water", elementType: "geometry", stylers: [{ color: "#bff8e8" }] },
-  { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#ccf7dd" }] },
-  { featureType: "road", elementType: "geometry", stylers: [{ color: "#ffffff" }] },
-  { featureType: "road.arterial", elementType: "geometry", stylers: [{ color: "#ffe1f0" }] },
-  { featureType: "road", elementType: "labels.text.fill", stylers: [{ color: "#77777d" }] },
-  { featureType: "landscape.man_made", elementType: "geometry", stylers: [{ color: "#ffd8ec" }] },
-  { featureType: "landscape.natural", elementType: "geometry", stylers: [{ color: "#e8fff1" }] },
-  { elementType: "labels.text.fill", stylers: [{ color: "#777777" }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#b4f7e5" }] },
+  { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#bff5d3" }] },
+  { featureType: "road", elementType: "geometry", stylers: [{ color: "#fffefe" }] },
+  { featureType: "road.arterial", elementType: "geometry", stylers: [{ color: "#ffeaf5" }] },
+  { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#fff7fb" }] },
+  { featureType: "road", elementType: "labels.text.fill", stylers: [{ color: "#6f6f76" }] },
+  { featureType: "landscape.man_made", elementType: "geometry", stylers: [{ color: "#ffc9e5" }] },
+  { featureType: "landscape.natural", elementType: "geometry", stylers: [{ color: "#dfffee" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#69696d" }] },
   { elementType: "labels.text.stroke", stylers: [{ color: "#ffffff" }] },
 ];
 
@@ -241,6 +242,7 @@ export default function App() {
   const [aura, setAura] = useState(320);
   const [completed, setCompleted] = useState<number[]>([]);
   const [activeMission, setActiveMission] = useState<Mission | null>(null);
+  const [nearbyOpen, setNearbyOpen] = useState(false);
   const [missionStarted, setMissionStarted] = useState(false);
   const [photoProofs, setPhotoProofs] = useState<Record<number, string>>({});
   const [userLocation, setUserLocation] = useState<Location.LocationObjectCoords | null>(null);
@@ -252,6 +254,21 @@ export default function App() {
     return total + (mission?.duration ?? 0);
   }, 0);
   const leaderboard = leaderboardMode === "friends" ? people : publicPeople;
+  const userCoordinate = {
+    latitude: userLocation?.latitude ?? initialRegion.latitude,
+    longitude: userLocation?.longitude ?? initialRegion.longitude,
+  };
+  const nearbyMissions = useMemo(
+    () =>
+      missions
+        .map((mission) => ({
+          ...mission,
+          liveDistance: distanceMeters(userCoordinate, mission),
+        }))
+        .sort((a, b) => a.liveDistance - b.liveDistance)
+        .slice(0, 5),
+    [userCoordinate.latitude, userCoordinate.longitude],
+  );
 
   useEffect(() => {
     async function loadProgress() {
@@ -425,9 +442,12 @@ export default function App() {
                 pitchEnabled
                 ref={mapRef}
                 rotateEnabled={false}
-                showsUserLocation
+                showsUserLocation={false}
                 style={styles.map}
               >
+                <Marker coordinate={userCoordinate} onPress={() => setNearbyOpen(true)} tracksViewChanges={false}>
+                  <UserMarker />
+                </Marker>
                 {missions.map((mission) => (
                   <Marker
                     coordinate={{
@@ -553,6 +573,16 @@ export default function App() {
         startMission={startMission}
         validateMission={validateMission}
       />
+
+      <NearbyMissionsModal
+        close={() => setNearbyOpen(false)}
+        missions={nearbyMissions}
+        open={nearbyOpen}
+        openMission={(mission) => {
+          setNearbyOpen(false);
+          openMission(mission);
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -597,6 +627,50 @@ function Header({
         </View>
       </View>
     </View>
+  );
+}
+
+function NearbyMissionsModal({
+  close,
+  missions,
+  open,
+  openMission,
+}: {
+  close: () => void;
+  missions: (Mission & { liveDistance: number })[];
+  open: boolean;
+  openMission: (mission: Mission) => void;
+}) {
+  return (
+    <Modal animationType="fade" onRequestClose={close} transparent visible={open}>
+      <Pressable onPress={close} style={styles.nearbyBackdrop}>
+        <Pressable style={styles.nearbyCard}>
+          <View style={styles.nearbyHeader}>
+            <Text style={styles.nearbyEyebrow}>Autour de toi</Text>
+            <Text style={styles.nearbyCount}>{missions.length}</Text>
+          </View>
+          <Text style={styles.nearbyTitle}>Missions proches</Text>
+
+          {missions.map((mission) => (
+            <Pressable
+              key={mission.id}
+              onPress={() => openMission(mission)}
+              style={({ pressed }) => [styles.nearbyMission, pressed && styles.pressed]}
+            >
+              <View style={styles.nearbyMissionText}>
+                <Text style={styles.nearbyMissionTitle}>{mission.title}</Text>
+                <Text style={styles.nearbyMissionPlace}>
+                  {mission.place} · {mission.liveDistance < 1000
+                    ? `${mission.liveDistance}m`
+                    : `${(mission.liveDistance / 1000).toFixed(1)}km`}
+                </Text>
+              </View>
+              <Text style={styles.nearbyAura}>+{mission.aura}</Text>
+            </Pressable>
+          ))}
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -686,6 +760,17 @@ function MissionMarker({ done, special }: { done: boolean; special: boolean }) {
         <View style={styles.walkerArm} />
         <View style={styles.walkerLegLeft} />
         <View style={styles.walkerLegRight} />
+      </View>
+    </View>
+  );
+}
+
+function UserMarker() {
+  return (
+    <View style={styles.userMarkerWrap}>
+      <View style={styles.userMarkerPulse} />
+      <View style={styles.userMarker}>
+        <Text style={styles.userMarkerText}>Toi</Text>
       </View>
     </View>
   );
@@ -906,6 +991,78 @@ const styles = StyleSheet.create({
     color: "#101214",
     fontSize: 14,
     fontWeight: "900",
+  },
+  nearbyAura: {
+    color: "#11b96f",
+    fontSize: 17,
+    fontWeight: "900",
+  },
+  nearbyBackdrop: {
+    backgroundColor: "rgba(0,0,0,0.18)",
+    flex: 1,
+    justifyContent: "center",
+    padding: 22,
+  },
+  nearbyCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: 28,
+    padding: 18,
+    shadowColor: "#000000",
+    shadowOpacity: 0.16,
+    shadowRadius: 24,
+  },
+  nearbyCount: {
+    backgroundColor: "#eafff5",
+    borderRadius: 999,
+    color: "#11b96f",
+    fontSize: 15,
+    fontWeight: "900",
+    overflow: "hidden",
+    paddingHorizontal: 13,
+    paddingVertical: 6,
+  },
+  nearbyEyebrow: {
+    color: "#ff4fa3",
+    fontSize: 12,
+    fontWeight: "900",
+    letterSpacing: 2,
+    textTransform: "uppercase",
+  },
+  nearbyHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  nearbyMission: {
+    alignItems: "center",
+    backgroundColor: "#fbfcfc",
+    borderColor: "rgba(0,0,0,0.06)",
+    borderRadius: 20,
+    borderWidth: 1,
+    flexDirection: "row",
+    marginTop: 10,
+    padding: 13,
+  },
+  nearbyMissionPlace: {
+    color: "rgba(0,0,0,0.45)",
+    fontSize: 12,
+    fontWeight: "800",
+    marginTop: 3,
+  },
+  nearbyMissionText: {
+    flex: 1,
+  },
+  nearbyMissionTitle: {
+    color: "#101214",
+    fontSize: 15,
+    fontWeight: "900",
+  },
+  nearbyTitle: {
+    color: "#101214",
+    fontSize: 27,
+    fontWeight: "900",
+    marginBottom: 6,
+    marginTop: 6,
   },
   nav: {
     backgroundColor: "#ffffff",
@@ -1233,6 +1390,37 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 12,
     justifyContent: "space-between",
+  },
+  userMarker: {
+    alignItems: "center",
+    backgroundColor: "#101214",
+    borderColor: "#ff4fa3",
+    borderRadius: 999,
+    borderWidth: 3,
+    minWidth: 54,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    shadowColor: "#ff4fa3",
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+  },
+  userMarkerPulse: {
+    backgroundColor: "rgba(255,79,163,0.2)",
+    borderRadius: 999,
+    height: 72,
+    position: "absolute",
+    width: 72,
+  },
+  userMarkerText: {
+    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  userMarkerWrap: {
+    alignItems: "center",
+    height: 72,
+    justifyContent: "center",
+    width: 72,
   },
   tab: {
     alignItems: "center",
