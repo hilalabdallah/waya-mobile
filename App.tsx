@@ -785,7 +785,7 @@ function MissionModal({
           <Text style={styles.modalDetail}>{mission.detail}</Text>
 
           <View style={styles.modalStats}>
-            <SmallStat label="Aura" value={`+${mission.aura}`} />
+            <SmallStat label="Aura" value={`+${mission.aura}`} tone="green" />
             <SmallStat label="Niveau" value={mission.difficulty} />
             <SmallStat label="Rayon" value={`${mission.radius}m`} />
           </View>
@@ -811,11 +811,13 @@ function MissionModal({
   );
 }
 
-function SmallStat({ label, value }: { label: string; value: string }) {
+function SmallStat({ label, tone = "pink", value }: { label: string; tone?: "pink" | "green"; value: string }) {
+  const isGreen = tone === "green";
+
   return (
-    <View style={styles.smallStat}>
-      <Text style={styles.smallStatLabel}>{label}</Text>
-      <Text style={styles.smallStatValue}>{value}</Text>
+    <View style={[styles.smallStat, isGreen && styles.smallStatGreen]}>
+      <Text style={[styles.smallStatLabel, isGreen && styles.smallStatLabelGreen]}>{label}</Text>
+      <Text style={[styles.smallStatValue, isGreen && styles.smallStatValueGreen]}>{value}</Text>
     </View>
   );
 }
@@ -1263,13 +1265,13 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     alignItems: "center",
-    backgroundColor: "#ff4fa3",
+    backgroundColor: "#17e689",
     borderRadius: 22,
     marginTop: 18,
     padding: 16,
   },
   primaryButtonText: {
-    color: "#ffffff",
+    color: "#101214",
     fontSize: 16,
     fontWeight: "900",
   },
@@ -1458,16 +1460,25 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 10,
   },
+  smallStatGreen: {
+    backgroundColor: "#eafff5",
+  },
   smallStatLabel: {
     color: "rgba(0,0,0,0.45)",
     fontSize: 11,
     fontWeight: "800",
+  },
+  smallStatLabelGreen: {
+    color: "#119e63",
   },
   smallStatValue: {
     color: "#101214",
     fontSize: 14,
     fontWeight: "900",
     marginTop: 5,
+  },
+  smallStatValueGreen: {
+    color: "#17b978",
   },
   statGrid: {
     flexDirection: "row",
