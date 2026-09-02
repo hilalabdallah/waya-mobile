@@ -13,10 +13,11 @@ import {
   Text,
   View,
 } from "react-native";
-import MapView, { Marker, Region } from "react-native-maps";
+import MapView, { Marker, Polyline, Region } from "react-native-maps";
 
 type ViewName = "people" | "missions" | "profile";
 type LeaderboardMode = "friends" | "public";
+type TravelMode = "walk" | "bike" | "scooter";
 
 type Mission = {
   id: number;
@@ -243,7 +244,9 @@ export default function App() {
   const [completed, setCompleted] = useState<number[]>([]);
   const [activeMission, setActiveMission] = useState<Mission | null>(null);
   const [nearbyOpen, setNearbyOpen] = useState(false);
+  const [transportOpen, setTransportOpen] = useState(false);
   const [missionStarted, setMissionStarted] = useState(false);
+  const [travelMode, setTravelMode] = useState<TravelMode | null>(null);
   const [photoProofs, setPhotoProofs] = useState<Record<number, string>>({});
   const [userLocation, setUserLocation] = useState<Location.LocationObjectCoords | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -406,11 +409,38 @@ export default function App() {
 
     setActiveMission(mission);
     setMissionStarted(false);
+    setTravelMode(null);
+    setTransportOpen(false);
   }
 
-  async function startMission() {
+  async function startMission(mode: TravelMode) {
+    if (mode === "scooter") {
+      Alert.alert(
+        "Trottinette non compatible",
+        "WAYA n'est pas compatible avec les trottinettes electriques pour le moment.",
+      );
+      return;
+    }
+
+    setTravelMode(mode);
+    setTransportOpen(false);
     setMissionStarted(true);
-    await refreshLocation();
+    const location = await refreshLocation();
+
+    if (location && activeMission && mapRef.current) {
+      mapRef.current.animateCamera(
+        {
+          center: {
+            latitude: location.latitude,
+            longitude: location.longitude,
+          },
+          heading: 0,
+          pitch: 58,
+          zoom: 17.6,
+        },
+        { duration: 550 },
+      );
+    }
   }
 
   async function addPhotoProof() {
@@ -471,6 +501,7 @@ export default function App() {
     setCompleted((current) => [...current, activeMission.id]);
     setActiveMission(null);
     setMissionStarted(false);
+    setTravelMode(null);
 
     Alert.alert(
       "Mission validee",
@@ -514,6 +545,19 @@ export default function App() {
                 <Marker coordinate={userCoordinate} onPress={() => setNearbyOpen(true)} tracksViewChanges={false}>
                   <UserMarker />
                 </Marker>
+
+                {activeMission && missionStarted && (
+                  <Polyline
+                    coordinates={[
+                      userCoordinate,
+                      { latitude: activeMission.latitude, longitude: activeMission.longitude },
+                    ]}
+                    lineCap="round"
+                    lineJoin="round"
+                    strokeColor="#ff4fa3"
+                    strokeWidth={6}
+                  />
+                )}
 
                 {displayedMissions.map((mission) => (
                   <Marker
@@ -631,14 +675,22 @@ export default function App() {
 
       <MissionModal
         addPhotoProof={addPhotoProof}
-        close={() => setActiveMission(null)}
+        close={() => {
+          setActiveMission(null);
+          setMissionStarted(false);
+          setTravelMode(null);
+          setTransportOpen(false);
+        }}
         completed={activeMission ? completed.includes(activeMission.id) : false}
         mission={activeMission}
         missionStarted={missionStarted}
+        openTransport={() => setTransportOpen(true)}
         photoReady={activeMission ? Boolean(photoProofs[activeMission.id]) : false}
-        startMission={startMission}
+        travelMode={travelMode}
         validateMission={validateMission}
       />
+
+      <TransportModal close={() => setTransportOpen(false)} open={transportOpen} startMission={startMission} />
 
       <NearbyMissionsModal
         close={() => setNearbyOpen(false)}
@@ -745,8 +797,9 @@ function MissionModal({
   close,
   mission,
   missionStarted,
+  openTransport,
   photoReady,
-  startMission,
+  travelMode,
   validateMission,
 }: {
   addPhotoProof: () => void;
@@ -754,8 +807,9 @@ function MissionModal({
   completed: boolean;
   mission: Mission | null;
   missionStarted: boolean;
+  openTransport: () => void;
   photoReady: boolean;
-  startMission: () => void;
+  travelMode: TravelMode | null;
   validateMission: () => void;
 }) {
   const lastTapRef = useRef(0);
@@ -790,6 +844,12 @@ function MissionModal({
             <SmallStat label="Rayon" value={`${mission.radius}m`} />
           </View>
 
+          {missionStarted && travelMode && (
+            <Text style={styles.routeMode}>
+              Mode {travelMode === "walk" ? "a pied" : "velo"} active - suis le trace rose.
+            </Text>
+          )}
+
           {missionStarted && (
             <Pressable onPress={addPhotoProof} style={styles.photoButton}>
               <Text style={styles.photoTitle}>{photoReady ? "Preuve photo ajoutee" : "Ajouter une preuve photo"}</Text>
@@ -798,7 +858,7 @@ function MissionModal({
           )}
 
           <Pressable
-            onPress={missionStarted ? validateMission : startMission}
+            onPress={missionStarted ? validateMission : openTransport}
             style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}
           >
             <Text style={styles.primaryButtonText}>
@@ -808,6 +868,70 @@ function MissionModal({
         </Pressable>
       </View>
     </Modal>
+  );
+}
+
+function TransportModal({
+  close,
+  open,
+  startMission,
+}: {
+  close: () => void;
+  open: boolean;
+  startMission: (mode: TravelMode) => void;
+}) {
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <Modal animationType="fade" onRequestClose={close} transparent visible={open}>
+      <Pressable onPress={close} style={styles.transportBackdrop}>
+        <Pressable style={styles.transportCard}>
+          <Text style={styles.transportEyebrow}>Mode de trajet</Text>
+          <Text style={styles.transportTitle}>Tu y vas comment ?</Text>
+          <Text style={styles.transportText}>Choisis ton mode avant de lancer le guidage WAYA.</Text>
+
+          <View style={styles.transportChoices}>
+            <TransportChoice icon="P" label="A pied" onPress={() => startMission("walk")} />
+            <TransportChoice icon="V" label="Velo" onPress={() => startMission("bike")} />
+            <TransportChoice disabled icon="T" label="Trottinette" onPress={() => startMission("scooter")} />
+          </View>
+
+          <Text style={styles.transportWarning}>
+            Les trottinettes electriques ne sont pas compatibles pour le moment.
+          </Text>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+function TransportChoice({
+  disabled,
+  icon,
+  label,
+  onPress,
+}: {
+  disabled?: boolean;
+  icon: string;
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.transportChoice,
+        disabled && styles.transportChoiceDisabled,
+        pressed && styles.pressed,
+      ]}
+    >
+      <View style={[styles.transportIcon, disabled && styles.transportIconDisabled]}>
+        <Text style={[styles.transportIconText, disabled && styles.transportIconTextDisabled]}>{icon}</Text>
+      </View>
+      <Text style={[styles.transportChoiceText, disabled && styles.transportChoiceTextDisabled]}>{label}</Text>
+    </Pressable>
   );
 }
 
@@ -1440,6 +1564,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "900",
   },
+  routeMode: {
+    backgroundColor: "#fff1f8",
+    borderRadius: 16,
+    color: "#ff4fa3",
+    fontSize: 13,
+    fontWeight: "900",
+    marginTop: 14,
+    overflow: "hidden",
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
   safe: {
     backgroundColor: "#f7f7f8",
     flex: 1,
@@ -1533,6 +1668,93 @@ const styles = StyleSheet.create({
   },
   tabTextActive: {
     color: "#ffffff",
+  },
+  transportBackdrop: {
+    backgroundColor: "rgba(0,0,0,0.24)",
+    flex: 1,
+    justifyContent: "flex-end",
+    padding: 18,
+  },
+  transportCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: 30,
+    padding: 18,
+    paddingBottom: 22,
+    shadowColor: "#000000",
+    shadowOpacity: 0.16,
+    shadowRadius: 24,
+  },
+  transportChoice: {
+    alignItems: "center",
+    backgroundColor: "#fff1f8",
+    borderColor: "rgba(255,79,163,0.24)",
+    borderRadius: 22,
+    borderWidth: 1,
+    flex: 1,
+    gap: 8,
+    paddingVertical: 14,
+  },
+  transportChoiceDisabled: {
+    backgroundColor: "#f3f3f3",
+    borderColor: "rgba(0,0,0,0.08)",
+  },
+  transportChoices: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 16,
+  },
+  transportChoiceText: {
+    color: "#101214",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  transportChoiceTextDisabled: {
+    color: "rgba(0,0,0,0.38)",
+  },
+  transportEyebrow: {
+    color: "#ff4fa3",
+    fontSize: 12,
+    fontWeight: "900",
+    letterSpacing: 2,
+    textTransform: "uppercase",
+  },
+  transportIcon: {
+    alignItems: "center",
+    backgroundColor: "#ff4fa3",
+    borderRadius: 999,
+    height: 42,
+    justifyContent: "center",
+    width: 42,
+  },
+  transportIconDisabled: {
+    backgroundColor: "#d7d7d7",
+  },
+  transportIconText: {
+    color: "#ffffff",
+    fontSize: 18,
+    fontWeight: "900",
+  },
+  transportIconTextDisabled: {
+    color: "rgba(0,0,0,0.38)",
+  },
+  transportText: {
+    color: "rgba(0,0,0,0.55)",
+    fontSize: 14,
+    fontWeight: "700",
+    lineHeight: 21,
+    marginTop: 8,
+  },
+  transportTitle: {
+    color: "#101214",
+    fontSize: 24,
+    fontWeight: "900",
+    marginTop: 8,
+  },
+  transportWarning: {
+    color: "#17b978",
+    fontSize: 12,
+    fontWeight: "900",
+    marginTop: 14,
   },
   topRow: {
     alignItems: "center",
