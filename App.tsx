@@ -541,7 +541,9 @@ export default function App() {
               </Text>
             </View>
 
-            <PeopleSwitch mode={leaderboardMode} setMode={setLeaderboardMode} />
+            <View style={styles.peopleSwitchWrap}>
+              <PeopleSwitch mode={leaderboardMode} setMode={setLeaderboardMode} />
+            </View>
 
             {leaderboard
               .map((person) => (person.isUser ? { ...person, aura, rank: rank.current.name } : person))
@@ -599,9 +601,9 @@ export default function App() {
               <Text style={styles.playerTitle}>Profil joueur</Text>
               {[
                 ["Regularite", 46, "#ff4fa3"],
-                ["Courage", 64, "#ff4fa3"],
+                ["Courage", 64, "#17e689"],
                 ["Exploration", 58, "#ff4fa3"],
-                ["Discipline", 40, "#ff4fa3"],
+                ["Discipline", 40, "#17e689"],
                 ["Sociabilite", 52, "#ff4fa3"],
               ].map(([label, value, color]) => (
                 <View style={styles.qualityRow} key={String(label)}>
@@ -1198,7 +1200,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     flexDirection: "row",
     gap: 4,
-    marginBottom: 0,
     padding: 5,
     shadowColor: "#000000",
     shadowOpacity: 0.06,
@@ -1208,6 +1209,10 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 16,
     paddingVertical: 8,
+  },
+  peopleSwitchWrap: {
+    marginBottom: 8,
+    marginTop: 6,
   },
   peopleSwitchTabActive: {
     backgroundColor: "#101214",
