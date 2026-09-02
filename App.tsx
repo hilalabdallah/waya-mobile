@@ -258,16 +258,36 @@ export default function App() {
     latitude: userLocation?.latitude ?? initialRegion.latitude,
     longitude: userLocation?.longitude ?? initialRegion.longitude,
   };
+  const displayedMissions = useMemo(
+    () => [
+      ...missions,
+      {
+        id: 99,
+        title: "Mission test a 50m",
+        place: "Autour de toi",
+        detail: "Mission de test placee automatiquement a environ 50 metres de ta position actuelle.",
+        proof: "Photo prise autour de ta position.",
+        difficulty: "Facile" as const,
+        aura: 50,
+        distance: "50 m",
+        duration: 5,
+        radius: 100,
+        latitude: userCoordinate.latitude + 0.00045,
+        longitude: userCoordinate.longitude,
+      },
+    ],
+    [userCoordinate.latitude, userCoordinate.longitude],
+  );
   const nearbyMissions = useMemo(
     () =>
-      missions
+      displayedMissions
         .map((mission) => ({
           ...mission,
           liveDistance: distanceMeters(userCoordinate, mission),
         }))
         .sort((a, b) => a.liveDistance - b.liveDistance)
         .slice(0, 5),
-    [userCoordinate.latitude, userCoordinate.longitude],
+    [displayedMissions, userCoordinate.latitude, userCoordinate.longitude],
   );
 
   useEffect(() => {
@@ -449,7 +469,7 @@ export default function App() {
                   <UserMarker />
                 </Marker>
 
-                {missions.map((mission) => (
+                {displayedMissions.map((mission) => (
                   <Marker
                     coordinate={{ latitude: mission.latitude, longitude: mission.longitude }}
                     key={mission.id}
@@ -690,15 +710,27 @@ function MissionModal({
   startMission: () => void;
   validateMission: () => void;
 }) {
+  const lastTapRef = useRef(0);
+
   if (!mission) {
     return null;
+  }
+
+  function closeOnDoubleTap() {
+    const now = Date.now();
+
+    if (now - lastTapRef.current < 320) {
+      close();
+      return;
+    }
+
+    lastTapRef.current = now;
   }
 
   return (
     <Modal animationType="slide" onRequestClose={close} transparent visible>
       <View style={styles.modalBackdrop}>
-        <View style={styles.modalCard}>
-          <Pressable onPress={close} style={styles.modalHandle} />
+        <Pressable onPress={closeOnDoubleTap} style={styles.modalCard}>
           <Text style={styles.modalEyebrow}>{missionStarted ? "Mission active" : "Detail mission"}</Text>
           <Text style={styles.modalTitle}>{mission.title}</Text>
           <Text style={styles.modalPlace}>{mission.place}</Text>
@@ -725,7 +757,7 @@ function MissionModal({
               {missionStarted ? "Valider la mission" : "Demarrer la mission"}
             </Text>
           </Pressable>
-        </View>
+        </Pressable>
       </View>
     </Modal>
   );
