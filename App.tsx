@@ -471,7 +471,7 @@ export default function App() {
           <ScrollView contentContainerStyle={styles.scrollScreen}>
             <View style={styles.dailyCard}>
               <Text style={styles.dailyTitle}>
-                Le scroll t'a assez garde en otage. Va prendre de l'aura. Montceau ne va pas se traverser toute seule.
+                Luffy traverse les mers depuis 20 ans, toi tu dois juste traverser la ville
               </Text>
             </View>
 
@@ -1089,8 +1089,9 @@ const styles = StyleSheet.create({
     borderRadius: 26,
     borderWidth: 1,
     flexDirection: "row",
-    marginBottom: 12,
-    padding: 14,
+    marginBottom: 2,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
   },
   personCardActive: {
     backgroundColor: "#eafff5",
