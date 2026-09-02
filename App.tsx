@@ -1158,7 +1158,7 @@ const styles = StyleSheet.create({
     shadowRadius: 18,
   },
   personAura: {
-    color: "#ff4fa3",
+    color: "#17e689",
     fontSize: 18,
     fontWeight: "900",
   },
