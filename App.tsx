@@ -203,8 +203,8 @@ const mapStyle = [
 const initialRegion: Region = {
   latitude: 46.6743,
   longitude: 4.3633,
-  latitudeDelta: 0.032,
-  longitudeDelta: 0.032,
+  latitudeDelta: 0.012,
+  longitudeDelta: 0.012,
 };
 
 function getRank(aura: number) {
@@ -324,14 +324,17 @@ export default function App() {
       return;
     }
 
-    mapRef.current.animateToRegion(
+    mapRef.current.animateCamera(
       {
-        latitude: userLocation.latitude,
-        longitude: userLocation.longitude,
-        latitudeDelta: 0.032,
-        longitudeDelta: 0.032,
+        center: {
+          latitude: userLocation.latitude,
+          longitude: userLocation.longitude,
+        },
+        heading: 0,
+        pitch: 42,
+        zoom: 15.2,
       },
-      650,
+      { duration: 650 },
     );
   }, [userLocation]);
 
@@ -451,8 +454,8 @@ export default function App() {
                     ? {
                         latitude: userLocation.latitude,
                         longitude: userLocation.longitude,
-                        latitudeDelta: 0.032,
-                        longitudeDelta: 0.032,
+                        latitudeDelta: 0.012,
+                        longitudeDelta: 0.012,
                       }
                     : initialRegion
                 }
@@ -462,6 +465,7 @@ export default function App() {
                 pitchEnabled
                 ref={mapRef}
                 rotateEnabled={false}
+                showsBuildings
                 showsUserLocation={false}
                 style={styles.map}
               >
@@ -552,10 +556,10 @@ export default function App() {
             <View style={styles.playerCard}>
               <Text style={styles.playerTitle}>Profil joueur</Text>
               {[
-                ["Regularite", 46, "#17e689"],
+                ["Regularite", 46, "#ff4fa3"],
                 ["Courage", 64, "#ff4fa3"],
-                ["Exploration", 58, "#17e689"],
-                ["Discipline", 40, "#17e689"],
+                ["Exploration", 58, "#ff4fa3"],
+                ["Discipline", 40, "#ff4fa3"],
                 ["Sociabilite", 52, "#ff4fa3"],
               ].map(([label, value, color]) => (
                 <View style={styles.qualityRow} key={String(label)}>
@@ -853,7 +857,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   aura: {
-    color: "#11b96f",
+    color: "#ff4fa3",
     fontSize: 20,
     fontWeight: "900",
     textAlign: "right",
@@ -912,11 +916,10 @@ const styles = StyleSheet.create({
   },
   logo: {
     color: "#ff4fa3",
-    fontSize: 28,
-    fontStyle: "italic",
-    fontWeight: "800",
+    fontSize: 29,
+    fontWeight: "900",
     left: 0,
-    letterSpacing: 0.2,
+    letterSpacing: 0.4,
     position: "absolute",
     right: 0,
     textAlign: "center",
@@ -931,6 +934,7 @@ const styles = StyleSheet.create({
     flex: 1,
     marginBottom: 92,
     marginHorizontal: 10,
+    marginTop: 4,
     overflow: "hidden",
     shadowColor: "#000000",
     shadowOpacity: 0.08,
@@ -984,7 +988,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   modalEyebrow: {
-    color: "#17e689",
+    color: "#ff4fa3",
     fontSize: 12,
     fontWeight: "900",
     letterSpacing: 2,
@@ -1023,7 +1027,7 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   nearbyAura: {
-    color: "#11b96f",
+    color: "#ff4fa3",
     fontSize: 17,
     fontWeight: "900",
   },
@@ -1042,9 +1046,9 @@ const styles = StyleSheet.create({
     shadowRadius: 24,
   },
   nearbyCount: {
-    backgroundColor: "#eafff5",
+    backgroundColor: "#fff1f8",
     borderRadius: 999,
-    color: "#11b96f",
+    color: "#ff4fa3",
     fontSize: 15,
     fontWeight: "900",
     overflow: "hidden",
@@ -1110,7 +1114,7 @@ const styles = StyleSheet.create({
     shadowRadius: 18,
   },
   personAura: {
-    color: "#11b96f",
+    color: "#ff4fa3",
     fontSize: 18,
     fontWeight: "900",
   },
@@ -1121,13 +1125,13 @@ const styles = StyleSheet.create({
     borderRadius: 26,
     borderWidth: 1,
     flexDirection: "row",
-    marginBottom: 2,
+    marginBottom: 14,
     paddingHorizontal: 14,
     paddingVertical: 11,
   },
   personCardActive: {
-    backgroundColor: "#eafff5",
-    borderColor: "#17e689",
+    backgroundColor: "#fff1f8",
+    borderColor: "#ff4fa3",
   },
   personInfo: {
     flex: 1,
@@ -1320,12 +1324,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#fbfcfc",
     borderColor: "rgba(0,0,0,0.05)",
-    borderRadius: 22,
+    borderRadius: 26,
     borderWidth: 1,
     flexDirection: "row",
-    gap: 10,
-    marginTop: 16,
-    padding: 12,
+    gap: 12,
+    marginTop: 22,
+    paddingHorizontal: 14,
+    paddingVertical: 18,
   },
   progressFill: {
     backgroundColor: "#ff4fa3",
@@ -1334,7 +1339,7 @@ const styles = StyleSheet.create({
   },
   progressLabel: {
     color: "rgba(0,0,0,0.45)",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
   },
   progressMiddle: {
@@ -1342,15 +1347,15 @@ const styles = StyleSheet.create({
   },
   progressText: {
     color: "rgba(0,0,0,0.45)",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
-    marginTop: 5,
+    marginTop: 8,
     textAlign: "center",
   },
   progressTrack: {
     backgroundColor: "rgba(0,0,0,0.06)",
     borderRadius: 999,
-    height: 8,
+    height: 10,
     overflow: "hidden",
   },
   qualityFill: {
@@ -1386,7 +1391,7 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   safe: {
-    backgroundColor: "#f3f6f4",
+    backgroundColor: "#f7f7f8",
     flex: 1,
   },
   screen: {
@@ -1400,7 +1405,7 @@ const styles = StyleSheet.create({
     paddingBottom: 118,
   },
   smallStat: {
-    backgroundColor: "#f4fff9",
+    backgroundColor: "#fff1f8",
     borderRadius: 18,
     flex: 1,
     padding: 10,
