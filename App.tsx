@@ -244,7 +244,6 @@ export default function App() {
   const [completed, setCompleted] = useState<number[]>([]);
   const [activeMission, setActiveMission] = useState<Mission | null>(null);
   const [nearbyOpen, setNearbyOpen] = useState(false);
-  const [transportOpen, setTransportOpen] = useState(false);
   const [missionStarted, setMissionStarted] = useState(false);
   const [travelMode, setTravelMode] = useState<TravelMode | null>(null);
   const [photoProofs, setPhotoProofs] = useState<Record<number, string>>({});
@@ -410,7 +409,6 @@ export default function App() {
     setActiveMission(mission);
     setMissionStarted(false);
     setTravelMode(null);
-    setTransportOpen(false);
   }
 
   async function startMission(mode: TravelMode) {
@@ -423,7 +421,6 @@ export default function App() {
     }
 
     setTravelMode(mode);
-    setTransportOpen(false);
     setMissionStarted(true);
     const location = await refreshLocation();
 
@@ -679,18 +676,15 @@ export default function App() {
           setActiveMission(null);
           setMissionStarted(false);
           setTravelMode(null);
-          setTransportOpen(false);
         }}
         completed={activeMission ? completed.includes(activeMission.id) : false}
         mission={activeMission}
         missionStarted={missionStarted}
-        openTransport={() => setTransportOpen(true)}
         photoReady={activeMission ? Boolean(photoProofs[activeMission.id]) : false}
+        startMission={startMission}
         travelMode={travelMode}
         validateMission={validateMission}
       />
-
-      <TransportModal close={() => setTransportOpen(false)} open={transportOpen} startMission={startMission} />
 
       <NearbyMissionsModal
         close={() => setNearbyOpen(false)}
@@ -797,8 +791,8 @@ function MissionModal({
   close,
   mission,
   missionStarted,
-  openTransport,
   photoReady,
+  startMission,
   travelMode,
   validateMission,
 }: {
@@ -807,12 +801,13 @@ function MissionModal({
   completed: boolean;
   mission: Mission | null;
   missionStarted: boolean;
-  openTransport: () => void;
   photoReady: boolean;
+  startMission: (mode: TravelMode) => void;
   travelMode: TravelMode | null;
   validateMission: () => void;
 }) {
   const lastTapRef = useRef(0);
+  const [choosingTransport, setChoosingTransport] = useState(false);
 
   if (!mission) {
     return null;
@@ -832,22 +827,37 @@ function MissionModal({
   return (
     <Modal animationType="slide" onRequestClose={close} transparent visible>
       <View style={styles.modalBackdrop}>
-        <Pressable onPress={closeOnDoubleTap} style={styles.modalCard}>
-          <Text style={styles.modalEyebrow}>{missionStarted ? "Mission active" : "Detail mission"}</Text>
-          <Text style={styles.modalTitle}>{mission.title}</Text>
-          <Text style={styles.modalPlace}>{mission.place}</Text>
-          <Text style={styles.modalDetail}>{mission.detail}</Text>
+        <View style={styles.modalCard}>
+          <Pressable onPress={closeOnDoubleTap}>
+            <Text style={styles.modalEyebrow}>{missionStarted ? "Mission active" : "Detail mission"}</Text>
+            <Text style={styles.modalTitle}>{mission.title}</Text>
+            <Text style={styles.modalPlace}>{mission.place}</Text>
+            <Text style={styles.modalDetail}>{mission.detail}</Text>
 
-          <View style={styles.modalStats}>
-            <SmallStat label="Aura" value={`+${mission.aura}`} />
-            <SmallStat label="Niveau" value={mission.difficulty} />
-            <SmallStat label="Rayon" value={`${mission.radius}m`} />
-          </View>
+            <View style={styles.modalStats}>
+              <SmallStat label="Aura" value={`+${mission.aura}`} />
+              <SmallStat label="Niveau" value={mission.difficulty} />
+              <SmallStat label="Rayon" value={`${mission.radius}m`} />
+            </View>
 
-          {missionStarted && travelMode && (
-            <Text style={styles.routeMode}>
-              Mode {travelMode === "walk" ? "a pied" : "velo"} active - suis le trace rose.
-            </Text>
+            {missionStarted && travelMode && (
+              <Text style={styles.routeMode}>
+                Mode {travelMode === "walk" ? "a pied" : "velo"} active - suis le trace rose.
+              </Text>
+            )}
+          </Pressable>
+
+          {!missionStarted && choosingTransport && (
+            <View style={styles.inlineTransport}>
+              <View style={styles.transportChoices}>
+                <TransportChoice icon="P" label="A pied" onPress={() => startMission("walk")} />
+                <TransportChoice icon="V" label="Velo" onPress={() => startMission("bike")} />
+                <TransportChoice disabled icon="T" label="Trottinette" onPress={() => startMission("scooter")} />
+              </View>
+              <Text style={styles.transportWarning}>
+                Les trottinettes electriques ne sont pas compatibles pour le moment.
+              </Text>
+            </View>
           )}
 
           {missionStarted && (
@@ -858,51 +868,15 @@ function MissionModal({
           )}
 
           <Pressable
-            onPress={missionStarted ? validateMission : openTransport}
+            onPress={missionStarted ? validateMission : () => setChoosingTransport((current) => !current)}
             style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}
           >
             <Text style={styles.primaryButtonText}>
               {missionStarted ? "Valider la mission" : "Demarrer la mission"}
             </Text>
           </Pressable>
-        </Pressable>
+        </View>
       </View>
-    </Modal>
-  );
-}
-
-function TransportModal({
-  close,
-  open,
-  startMission,
-}: {
-  close: () => void;
-  open: boolean;
-  startMission: (mode: TravelMode) => void;
-}) {
-  if (!open) {
-    return null;
-  }
-
-  return (
-    <Modal animationType="fade" onRequestClose={close} transparent visible={open}>
-      <Pressable onPress={close} style={styles.transportBackdrop}>
-        <Pressable style={styles.transportCard}>
-          <Text style={styles.transportEyebrow}>Mode de trajet</Text>
-          <Text style={styles.transportTitle}>Tu y vas comment ?</Text>
-          <Text style={styles.transportText}>Choisis ton mode avant de lancer le guidage WAYA.</Text>
-
-          <View style={styles.transportChoices}>
-            <TransportChoice icon="P" label="A pied" onPress={() => startMission("walk")} />
-            <TransportChoice icon="V" label="Velo" onPress={() => startMission("bike")} />
-            <TransportChoice disabled icon="T" label="Trottinette" onPress={() => startMission("scooter")} />
-          </View>
-
-          <Text style={styles.transportWarning}>
-            Les trottinettes electriques ne sont pas compatibles pour le moment.
-          </Text>
-        </Pressable>
-      </Pressable>
     </Modal>
   );
 }
@@ -1669,20 +1643,9 @@ const styles = StyleSheet.create({
   tabTextActive: {
     color: "#ffffff",
   },
-  transportBackdrop: {
-    backgroundColor: "rgba(0,0,0,0.24)",
-    flex: 1,
-    justifyContent: "flex-end",
-    padding: 18,
-  },
-  transportCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: 30,
-    padding: 18,
-    paddingBottom: 22,
-    shadowColor: "#000000",
-    shadowOpacity: 0.16,
-    shadowRadius: 24,
+  inlineTransport: {
+    gap: 10,
+    marginTop: 16,
   },
   transportChoice: {
     alignItems: "center",
