@@ -785,7 +785,7 @@ function MissionModal({
           <Text style={styles.modalDetail}>{mission.detail}</Text>
 
           <View style={styles.modalStats}>
-            <SmallStat label="Aura" value={`+${mission.aura}`} tone="green" />
+            <SmallStat label="Aura" value={`+${mission.aura}`} />
             <SmallStat label="Niveau" value={mission.difficulty} />
             <SmallStat label="Rayon" value={`${mission.radius}m`} />
           </View>
@@ -1049,7 +1049,7 @@ const styles = StyleSheet.create({
     width: 52,
   },
   modalPlace: {
-    color: "#ff4fa3",
+    color: "#17b978",
     fontSize: 13,
     fontWeight: "900",
     letterSpacing: 1.4,
@@ -1265,13 +1265,13 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     alignItems: "center",
-    backgroundColor: "#17e689",
+    backgroundColor: "#ff4fa3",
     borderRadius: 22,
     marginTop: 18,
     padding: 16,
   },
   primaryButtonText: {
-    color: "#101214",
+    color: "#ffffff",
     fontSize: 16,
     fontWeight: "900",
   },
