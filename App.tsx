@@ -203,8 +203,8 @@ const mapStyle = [
 const initialRegion: Region = {
   latitude: 46.6743,
   longitude: 4.3633,
-  latitudeDelta: 0.012,
-  longitudeDelta: 0.012,
+  latitudeDelta: 0.0042,
+  longitudeDelta: 0.0042,
 };
 
 function getRank(aura: number) {
@@ -275,6 +275,48 @@ export default function App() {
         latitude: userCoordinate.latitude + 0.00045,
         longitude: userCoordinate.longitude,
       },
+      {
+        id: 100,
+        title: "Mission bord nord",
+        place: "A deux rues",
+        detail: "Mission de test placee vers le bord de la carte pour inviter a dezoomer.",
+        proof: "Photo prise autour de ta position.",
+        difficulty: "Simple" as const,
+        aura: 80,
+        distance: "180 m",
+        duration: 6,
+        radius: 100,
+        latitude: userCoordinate.latitude + 0.00135,
+        longitude: userCoordinate.longitude + 0.00085,
+      },
+      {
+        id: 101,
+        title: "Mission bord est",
+        place: "Quartier voisin",
+        detail: "Mission de test placee vers le bord de la carte pour inviter a dezoomer.",
+        proof: "Photo prise autour de ta position.",
+        difficulty: "Simple" as const,
+        aura: 80,
+        distance: "190 m",
+        duration: 6,
+        radius: 100,
+        latitude: userCoordinate.latitude - 0.00025,
+        longitude: userCoordinate.longitude + 0.00155,
+      },
+      {
+        id: 102,
+        title: "Mission bord ouest",
+        place: "Rue autour",
+        detail: "Mission de test placee vers le bord de la carte pour inviter a dezoomer.",
+        proof: "Photo prise autour de ta position.",
+        difficulty: "Simple" as const,
+        aura: 80,
+        distance: "170 m",
+        duration: 6,
+        radius: 100,
+        latitude: userCoordinate.latitude + 0.00065,
+        longitude: userCoordinate.longitude - 0.00145,
+      },
     ],
     [userCoordinate.latitude, userCoordinate.longitude],
   );
@@ -331,8 +373,8 @@ export default function App() {
           longitude: userLocation.longitude,
         },
         heading: 0,
-        pitch: 42,
-        zoom: 15.2,
+        pitch: 55,
+        zoom: 17.2,
       },
       { duration: 650 },
     );
@@ -454,8 +496,8 @@ export default function App() {
                     ? {
                         latitude: userLocation.latitude,
                         longitude: userLocation.longitude,
-                        latitudeDelta: 0.012,
-                        longitudeDelta: 0.012,
+                        latitudeDelta: 0.0042,
+                        longitudeDelta: 0.0042,
                       }
                     : initialRegion
                 }
@@ -1125,13 +1167,14 @@ const styles = StyleSheet.create({
     borderRadius: 26,
     borderWidth: 1,
     flexDirection: "row",
-    marginBottom: 14,
+    marginBottom: 6,
     paddingHorizontal: 14,
     paddingVertical: 11,
   },
   personCardActive: {
     backgroundColor: "#fff1f8",
     borderColor: "#ff4fa3",
+    borderWidth: 2,
   },
   personInfo: {
     flex: 1,
@@ -1155,7 +1198,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     flexDirection: "row",
     gap: 4,
-    marginBottom: 6,
+    marginBottom: 0,
     padding: 5,
     shadowColor: "#000000",
     shadowOpacity: 0.06,
@@ -1333,7 +1376,7 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
   },
   progressFill: {
-    backgroundColor: "#ff4fa3",
+    backgroundColor: "#17e689",
     borderRadius: 999,
     height: "100%",
   },
@@ -1399,8 +1442,8 @@ const styles = StyleSheet.create({
     paddingTop: 10,
   },
   scrollScreen: {
-    backgroundColor: "#f7f8f7",
-    gap: 14,
+    backgroundColor: "#f7f7f8",
+    gap: 8,
     padding: 18,
     paddingBottom: 118,
   },
