@@ -1,357 +1,179 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
-import * as Location from "expo-location";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
+  Image,
   Modal,
   Pressable,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
-import MapView, { Marker, Polyline, Region } from "react-native-maps";
 
-type ViewName = "people" | "missions" | "profile";
-type LeaderboardMode = "friends" | "public";
-type TravelMode = "walk" | "bike" | "scooter";
+type ViewName = "home" | "circle" | "journal";
+type Visibility = "private" | "circle" | "local";
+type MediaKind = "photo" | "video";
 
-type Mission = {
-  id: number;
-  title: string;
-  place: string;
-  detail: string;
-  proof: string;
-  difficulty: "Facile" | "Simple" | "Moyenne" | "Difficile" | "Speciale";
-  aura: number;
-  distance: string;
-  duration: number;
-  radius: number;
-  latitude: number;
-  longitude: number;
+type Trace = {
+  id: string;
+  author: string;
+  handle: string;
+  text: string;
+  createdAt: string;
+  visibility: Visibility;
+  mood?: string;
+  place?: string;
+  mediaKind?: MediaKind;
+  mediaUri?: string;
+  isMine?: boolean;
+  replies: number;
 };
 
-type SavedProgress = {
-  aura: number;
-  completed: number[];
-  photoProofs: Record<number, string>;
+type SavedState = {
+  traces: Trace[];
+  viewedMedia: string[];
+  lastActiveAt: string;
 };
 
-const storageKey = "waya-mobile-progress-v1";
+const storageKey = "waya-social-journal-v1";
+const purple = "#8B5CF6";
+const softPurple = "#F4EFFF";
+const border = "#E8E5ED";
+const black = "#090A0C";
+const muted = "#8B8792";
 
-const ranks = [
-  { name: "Inconnu", aura: 0 },
-  { name: "Random", aura: 500 },
-  { name: "Courageux", aura: 1000 },
-  { name: "Vaillant", aura: 3000 },
-  { name: "Phenomene", aura: 5000 },
-  { name: "Monstre", aura: 7000 },
-  { name: "Legende", aura: 15000 },
-];
-
-const missions: Mission[] = [
+const starterTraces: Trace[] = [
   {
-    id: 1,
-    title: "Tour du lac du Plessis",
-    place: "Lac du Plessis",
-    detail: "Rends-toi au lac, fais le tour complet, puis prends une photo du plan d'eau ou du chemin.",
-    proof: "Photo du lac, du chemin ou du panneau autour du Plessis.",
-    difficulty: "Speciale",
-    aura: 500,
-    distance: "2.1 km",
-    duration: 35,
-    radius: 100,
-    latitude: 46.6798,
-    longitude: 4.3568,
+    id: "seed-1",
+    author: "As",
+    handle: "@as",
+    text: "Journee bizarre, j'sais meme pas s'il fait chaud ou froid...",
+    createdAt: new Date(Date.now() - 1000 * 60 * 24).toISOString(),
+    visibility: "circle",
+    mood: "flou",
+    place: "Montceau",
+    mediaKind: "photo",
+    replies: 3,
   },
   {
-    id: 2,
-    title: "Photo devant la mairie",
-    place: "Hotel de Ville",
-    detail: "Rejoins la mairie de Montceau-les-Mines et prends une photo de la facade ou du parvis.",
-    proof: "Photo de la facade ou du parvis de l'Hotel de Ville.",
-    difficulty: "Simple",
-    aura: 150,
-    distance: "0.8 km",
-    duration: 15,
-    radius: 70,
-    latitude: 46.6743,
-    longitude: 4.3633,
+    id: "seed-2",
+    author: "Nolan",
+    handle: "@nolan",
+    text: "Ca craint, mais au moins c'est note quelque part.",
+    createdAt: new Date(Date.now() - 1000 * 60 * 54).toISOString(),
+    visibility: "circle",
+    mood: "fatigue",
+    replies: 1,
   },
   {
-    id: 3,
-    title: "Panneau rue Carnot",
-    place: "Rue Carnot",
-    detail: "Trouve le panneau de la rue Carnot et prends une photo ou l'on distingue bien le nom de la rue.",
-    proof: "Photo lisible du panneau Rue Carnot.",
-    difficulty: "Moyenne",
-    aura: 200,
-    distance: "1.0 km",
-    duration: 18,
-    radius: 60,
-    latitude: 46.6752,
-    longitude: 4.361,
+    id: "seed-3",
+    author: "Zer",
+    handle: "@zer",
+    text: "Boulot de merde. J'avais juste besoin de poser la phrase.",
+    createdAt: new Date(Date.now() - 1000 * 60 * 93).toISOString(),
+    visibility: "local",
+    place: "Le Creusot",
+    replies: 0,
   },
   {
-    id: 4,
-    title: "Check a la gare",
-    place: "Gare de Montceau",
-    detail: "Va jusqu'a la gare et prends une photo du panneau, de l'entree ou des quais visibles.",
-    proof: "Photo du panneau, de l'entree ou des quais de la gare.",
-    difficulty: "Difficile",
-    aura: 350,
-    distance: "1.8 km",
-    duration: 28,
-    radius: 80,
-    latitude: 46.6716,
-    longitude: 4.3669,
-  },
-  {
-    id: 5,
-    title: "Parc Maugrand",
-    place: "Parc Maugrand",
-    detail: "Rejoins une entree du parc Maugrand et prends une photo d'un chemin, d'un panneau ou d'un espace vert.",
-    proof: "Photo d'une entree, d'un chemin ou d'un panneau du parc.",
-    difficulty: "Facile",
-    aura: 50,
-    distance: "0.7 km",
-    duration: 12,
-    radius: 80,
-    latitude: 46.6695,
-    longitude: 4.3534,
-  },
-  {
-    id: 6,
-    title: "Passerelle du canal",
-    place: "Canal du Centre",
-    detail: "Rejoins la zone du canal et prends une photo d'une passerelle, d'une ecluse ou du bord de l'eau.",
-    proof: "Photo d'une passerelle, d'une ecluse ou du bord du canal.",
-    difficulty: "Moyenne",
-    aura: 200,
-    distance: "1.4 km",
-    duration: 22,
-    radius: 90,
-    latitude: 46.6767,
-    longitude: 4.3684,
-  },
-  {
-    id: 7,
-    title: "Facade de l'Embarcadere",
-    place: "L'Embarcadere",
-    detail: "Va devant l'Embarcadere et prends une photo de la facade ou du panneau du lieu.",
-    proof: "Photo de la facade ou du panneau de l'Embarcadere.",
-    difficulty: "Simple",
-    aura: 150,
-    distance: "0.9 km",
-    duration: 16,
-    radius: 70,
-    latitude: 46.6759,
-    longitude: 4.3649,
-  },
-  {
-    id: 8,
-    title: "Street check Saint-Louis",
-    place: "Quartier Saint-Louis",
-    detail: "Va dans le secteur Saint-Louis et prends une photo d'une rue, d'un panneau ou d'un repere du quartier.",
-    proof: "Photo d'une rue, d'un panneau ou d'un repere Saint-Louis.",
-    difficulty: "Difficile",
-    aura: 350,
-    distance: "1.9 km",
-    duration: 30,
-    radius: 100,
-    latitude: 46.6824,
-    longitude: 4.3671,
+    id: "seed-4",
+    author: "Maya",
+    handle: "@maya",
+    text: "Petit moment calme, ca faisait longtemps.",
+    createdAt: new Date(Date.now() - 1000 * 60 * 180).toISOString(),
+    visibility: "circle",
+    mood: "pose",
+    mediaKind: "video",
+    replies: 6,
   },
 ];
 
-const people = [
-  { name: "@mcy.maya", rank: "Phenomene", aura: 5280 },
-  { name: "@yanis713", rank: "Vaillant", aura: 3810 },
-  { name: "@ness", rank: "Random", aura: 0, isUser: true },
-  { name: "@lina.moves", rank: "Courageux", aura: 1260 },
-  { name: "@plessis.run", rank: "Random", aura: 760 },
-];
+function formatTraceTime(value: string) {
+  const elapsed = Date.now() - new Date(value).getTime();
+  const minutes = Math.max(1, Math.floor(elapsed / 60000));
 
-const publicPeople = [
-  { name: "@montceau.ghost", rank: "Monstre", aura: 8120 },
-  { name: "@canalrunner", rank: "Phenomene", aura: 5440 },
-  { name: "@mcy.maya", rank: "Phenomene", aura: 5280 },
-  { name: "@saintvallier7", rank: "Vaillant", aura: 3370 },
-  { name: "@ness", rank: "Random", aura: 0, isUser: true },
-];
+  if (minutes < 60) {
+    return `${minutes} min`;
+  }
 
-const mapStyle = [
-  { elementType: "geometry", stylers: [{ color: "#ffd9ee" }] },
-  { featureType: "administrative.locality", elementType: "labels.text.fill", stylers: [{ color: "#101214" }] },
-  { featureType: "poi", elementType: "labels.icon", stylers: [{ visibility: "off" }] },
-  { featureType: "poi.business", stylers: [{ visibility: "off" }] },
-  { featureType: "transit", stylers: [{ visibility: "off" }] },
-  { featureType: "water", elementType: "geometry", stylers: [{ color: "#b4f7e5" }] },
-  { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#bff5d3" }] },
-  { featureType: "road", elementType: "geometry", stylers: [{ color: "#ffffff" }] },
-  { featureType: "road.arterial", elementType: "geometry", stylers: [{ color: "#ffeaf5" }] },
-  { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#fff7fb" }] },
-  { featureType: "road", elementType: "labels.text.fill", stylers: [{ color: "#6f6f76" }] },
-  { featureType: "landscape.man_made", elementType: "geometry", stylers: [{ color: "#ffc9e5" }] },
-  { featureType: "landscape.natural", elementType: "geometry", stylers: [{ color: "#dfffee" }] },
-  { elementType: "labels.text.fill", stylers: [{ color: "#69696d" }] },
-  { elementType: "labels.text.stroke", stylers: [{ color: "#ffffff" }] },
-];
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    return `${hours} h`;
+  }
 
-const initialRegion: Region = {
-  latitude: 46.6743,
-  longitude: 4.3633,
-  latitudeDelta: 0.0042,
-  longitudeDelta: 0.0042,
-};
-
-function getRank(aura: number) {
-  const current = [...ranks].reverse().find((rank) => aura >= rank.aura) ?? ranks[0];
-  const index = ranks.findIndex((rank) => rank.name === current.name);
-  const next = ranks[index + 1] ?? null;
-  const progress = next
-    ? Math.min(100, Math.round(((aura - current.aura) / (next.aura - current.aura)) * 100))
-    : 100;
-  const needed = next ? next.aura - aura : 0;
-
-  return { current, next, progress, needed };
+  return `${Math.floor(hours / 24)} j`;
 }
 
-function distanceMeters(
-  from: { latitude: number; longitude: number },
-  to: { latitude: number; longitude: number },
-) {
-  const radius = 6371000;
-  const lat1 = (from.latitude * Math.PI) / 180;
-  const lat2 = (to.latitude * Math.PI) / 180;
-  const deltaLat = ((to.latitude - from.latitude) * Math.PI) / 180;
-  const deltaLng = ((to.longitude - from.longitude) * Math.PI) / 180;
-  const a =
-    Math.sin(deltaLat / 2) ** 2 +
-    Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLng / 2) ** 2;
+function visibilityLabel(visibility: Visibility) {
+  if (visibility === "private") {
+    return "Prive";
+  }
 
-  return Math.round(radius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+  if (visibility === "local") {
+    return "Public local";
+  }
+
+  return "Entourage";
+}
+
+function computePresence(traces: Trace[], lastActiveAt: string) {
+  const mine = traces.filter((trace) => trace.isMine);
+  const daysInactive = Math.floor((Date.now() - new Date(lastActiveAt).getTime()) / 86400000);
+  const score = Math.max(8, Math.min(100, 42 + mine.length * 8 - daysInactive * 5));
+
+  if (score >= 82) {
+    return { score, label: "Ancre" };
+  }
+  if (score >= 64) {
+    return { score, label: "Marquant" };
+  }
+  if (score >= 42) {
+    return { score, label: "Present" };
+  }
+  if (score >= 24) {
+    return { score, label: "Discret" };
+  }
+
+  return { score, label: "Silencieux" };
 }
 
 export default function App() {
-  const mapRef = useRef<MapView | null>(null);
-  const [view, setView] = useState<ViewName>("missions");
-  const [leaderboardMode, setLeaderboardMode] = useState<LeaderboardMode>("friends");
-  const [aura, setAura] = useState(320);
-  const [completed, setCompleted] = useState<number[]>([]);
-  const [activeMission, setActiveMission] = useState<Mission | null>(null);
-  const [nearbyOpen, setNearbyOpen] = useState(false);
-  const [missionStarted, setMissionStarted] = useState(false);
-  const [travelMode, setTravelMode] = useState<TravelMode | null>(null);
-  const [photoProofs, setPhotoProofs] = useState<Record<number, string>>({});
-  const [userLocation, setUserLocation] = useState<Location.LocationObjectCoords | null>(null);
+  const [view, setView] = useState<ViewName>("home");
+  const [traces, setTraces] = useState<Trace[]>(starterTraces);
+  const [viewedMedia, setViewedMedia] = useState<string[]>([]);
+  const [lastActiveAt, setLastActiveAt] = useState(new Date().toISOString());
+  const [composerOpen, setComposerOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
-  const rank = useMemo(() => getRank(aura), [aura]);
-  const totalMinutes = completed.reduce((total, id) => {
-    const mission = missions.find((item) => item.id === id);
-    return total + (mission?.duration ?? 0);
-  }, 0);
-  const leaderboard = leaderboardMode === "friends" ? people : publicPeople;
-  const userCoordinate = {
-    latitude: userLocation?.latitude ?? initialRegion.latitude,
-    longitude: userLocation?.longitude ?? initialRegion.longitude,
-  };
-  const displayedMissions = useMemo(
-    () => [
-      ...missions,
-      {
-        id: 99,
-        title: "Mission test a 50m",
-        place: "Autour de toi",
-        detail: "Mission de test placee automatiquement a environ 50 metres de ta position actuelle.",
-        proof: "Photo prise autour de ta position.",
-        difficulty: "Facile" as const,
-        aura: 50,
-        distance: "50 m",
-        duration: 5,
-        radius: 100,
-        latitude: userCoordinate.latitude + 0.00045,
-        longitude: userCoordinate.longitude,
-      },
-      {
-        id: 100,
-        title: "Mission bord nord",
-        place: "A deux rues",
-        detail: "Mission de test placee vers le bord de la carte pour inviter a dezoomer.",
-        proof: "Photo prise autour de ta position.",
-        difficulty: "Simple" as const,
-        aura: 80,
-        distance: "180 m",
-        duration: 6,
-        radius: 100,
-        latitude: userCoordinate.latitude + 0.00135,
-        longitude: userCoordinate.longitude + 0.00085,
-      },
-      {
-        id: 101,
-        title: "Mission bord est",
-        place: "Quartier voisin",
-        detail: "Mission de test placee vers le bord de la carte pour inviter a dezoomer.",
-        proof: "Photo prise autour de ta position.",
-        difficulty: "Simple" as const,
-        aura: 80,
-        distance: "190 m",
-        duration: 6,
-        radius: 100,
-        latitude: userCoordinate.latitude - 0.00025,
-        longitude: userCoordinate.longitude + 0.00155,
-      },
-      {
-        id: 102,
-        title: "Mission bord ouest",
-        place: "Rue autour",
-        detail: "Mission de test placee vers le bord de la carte pour inviter a dezoomer.",
-        proof: "Photo prise autour de ta position.",
-        difficulty: "Simple" as const,
-        aura: 80,
-        distance: "170 m",
-        duration: 6,
-        radius: 100,
-        latitude: userCoordinate.latitude + 0.00065,
-        longitude: userCoordinate.longitude - 0.00145,
-      },
-    ],
-    [userCoordinate.latitude, userCoordinate.longitude],
+  const presence = useMemo(() => computePresence(traces, lastActiveAt), [lastActiveAt, traces]);
+  const sortedTraces = useMemo(
+    () => [...traces].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+    [traces],
   );
-  const nearbyMissions = useMemo(
-    () =>
-      displayedMissions
-        .map((mission) => ({
-          ...mission,
-          liveDistance: distanceMeters(userCoordinate, mission),
-        }))
-        .sort((a, b) => a.liveDistance - b.liveDistance)
-        .slice(0, 5),
-    [displayedMissions, userCoordinate.latitude, userCoordinate.longitude],
-  );
+  const myTraces = useMemo(() => sortedTraces.filter((trace) => trace.isMine), [sortedTraces]);
 
   useEffect(() => {
-    async function loadProgress() {
+    async function loadState() {
       try {
         const saved = await AsyncStorage.getItem(storageKey);
 
         if (saved) {
-          const parsed = JSON.parse(saved) as Partial<SavedProgress>;
-          setAura(typeof parsed.aura === "number" ? parsed.aura : 320);
-          setCompleted(Array.isArray(parsed.completed) ? parsed.completed : []);
-          setPhotoProofs(parsed.photoProofs ?? {});
+          const parsed = JSON.parse(saved) as Partial<SavedState>;
+          setTraces(Array.isArray(parsed.traces) && parsed.traces.length ? parsed.traces : starterTraces);
+          setViewedMedia(Array.isArray(parsed.viewedMedia) ? parsed.viewedMedia : []);
+          setLastActiveAt(typeof parsed.lastActiveAt === "string" ? parsed.lastActiveAt : new Date().toISOString());
         }
       } finally {
         setLoaded(true);
       }
     }
 
-    loadProgress();
-    refreshLocation(false);
+    loadState();
   }, []);
 
   useEffect(() => {
@@ -359,152 +181,50 @@ export default function App() {
       return;
     }
 
-    const progress: SavedProgress = { aura, completed, photoProofs };
-    AsyncStorage.setItem(storageKey, JSON.stringify(progress));
-  }, [aura, completed, loaded, photoProofs]);
+    const state: SavedState = { traces, viewedMedia, lastActiveAt };
+    AsyncStorage.setItem(storageKey, JSON.stringify(state));
+  }, [lastActiveAt, loaded, traces, viewedMedia]);
 
-  useEffect(() => {
-    if (!userLocation || !mapRef.current) {
-      return;
-    }
+  function addTrace(trace: Omit<Trace, "id" | "createdAt" | "author" | "handle" | "isMine" | "replies">) {
+    const nextTrace: Trace = {
+      ...trace,
+      id: `trace-${Date.now()}`,
+      author: "Ness",
+      handle: "@ness",
+      createdAt: new Date().toISOString(),
+      isMine: true,
+      replies: 0,
+    };
 
-    mapRef.current.animateCamera(
-      {
-        center: {
-          latitude: userLocation.latitude,
-          longitude: userLocation.longitude,
-        },
-        heading: 0,
-        pitch: 55,
-        zoom: 17.2,
-      },
-      { duration: 650 },
+    setTraces((current) => [nextTrace, ...current]);
+    setLastActiveAt(new Date().toISOString());
+    setComposerOpen(false);
+  }
+
+  function answerTrace(trace: Trace) {
+    setLastActiveAt(new Date().toISOString());
+    setTraces((current) =>
+      current.map((item) => (item.id === trace.id ? { ...item, replies: item.replies + 1 } : item)),
     );
-  }, [userLocation]);
-
-  async function refreshLocation(showError = true) {
-    const permission = await Location.requestForegroundPermissionsAsync();
-
-    if (permission.status !== "granted") {
-      if (showError) {
-        Alert.alert("GPS refuse", "Active ta position pour valider les missions WAYA.");
-      }
-      return null;
-    }
-
-    const position = await Location.getCurrentPositionAsync({
-      accuracy: Location.Accuracy.High,
-    });
-
-    setUserLocation(position.coords);
-    return position.coords;
+    Alert.alert("Reponse envoyee", `Tu viens de repondre a ${trace.author}.`);
   }
 
-  function openMission(mission: Mission) {
-    if (completed.includes(mission.id)) {
-      Alert.alert("Mission deja validee", "Trouve un nouveau move.");
+  function openMedia(trace: Trace) {
+    if (!trace.mediaKind) {
       return;
     }
 
-    setActiveMission(mission);
-    setMissionStarted(false);
-    setTravelMode(null);
-  }
-
-  async function startMission(mode: TravelMode) {
-    if (mode === "scooter") {
-      Alert.alert(
-        "Trottinette non compatible",
-        "WAYA n'est pas compatible avec les trottinettes electriques pour le moment.",
-      );
+    if (viewedMedia.includes(trace.id) && !trace.isMine) {
+      Alert.alert("Deja vu", "Ce moment ne pouvait etre ouvert qu'une seule fois.");
       return;
     }
 
-    setTravelMode(mode);
-    setMissionStarted(true);
-    const location = await refreshLocation();
-
-    if (location && activeMission && mapRef.current) {
-      mapRef.current.animateCamera(
-        {
-          center: {
-            latitude: location.latitude,
-            longitude: location.longitude,
-          },
-          heading: 0,
-          pitch: 58,
-          zoom: 17.6,
-        },
-        { duration: 550 },
-      );
-    }
-  }
-
-  async function addPhotoProof() {
-    if (!activeMission) {
-      return;
-    }
-
-    const permission = await ImagePicker.requestCameraPermissionsAsync();
-
-    if (permission.status !== "granted") {
-      Alert.alert("Camera refusee", "Autorise l'appareil photo pour ajouter une preuve.");
-      return;
-    }
-
-    const result = await ImagePicker.launchCameraAsync({
-      allowsEditing: false,
-      quality: 0.7,
-    });
-
-    if (!result.canceled) {
-      setPhotoProofs((current) => ({
-        ...current,
-        [activeMission.id]: result.assets[0]?.uri ?? "preuve-photo",
-      }));
-    }
-  }
-
-  async function validateMission() {
-    if (!activeMission) {
-      return;
-    }
-
-    if (!photoProofs[activeMission.id]) {
-      Alert.alert("Preuve manquante", "Ajoute une photo du lieu avant de valider.");
-      return;
-    }
-
-    const location = await refreshLocation();
-
-    if (!location) {
-      return;
-    }
-
-    const distance = distanceMeters(location, activeMission);
-
-    if (distance > activeMission.radius) {
-      Alert.alert(
-        "Encore trop loin",
-        `Tu es a ${distance}m. Entre dans le rayon de ${activeMission.radius}m pour valider.`,
-      );
-      return;
-    }
-
-    const nextAura = aura + activeMission.aura;
-    const nextRank = getRank(nextAura);
-
-    setAura(nextAura);
-    setCompleted((current) => [...current, activeMission.id]);
-    setActiveMission(null);
-    setMissionStarted(false);
-    setTravelMode(null);
-
+    setViewedMedia((current) => (current.includes(trace.id) ? current : [...current, trace.id]));
     Alert.alert(
-      "Mission validee",
-      nextRank.current.name !== rank.current.name
-        ? `Nouveau rang : ${nextRank.current.name}.`
-        : `+${activeMission.aura} aura. Continue comme ca.`,
+      trace.mediaKind === "video" ? "Video ouverte" : "Photo ouverte",
+      trace.mediaUri
+        ? "Dans cette V1, le media est attache a la trace. L'ouverture complete arrive dans l'etape suivante."
+        : "Media fictif pour montrer le comportement visuel.",
     );
   }
 
@@ -512,203 +232,106 @@ export default function App() {
     <SafeAreaView style={styles.safe}>
       <StatusBar style="dark" />
       <View style={styles.app}>
-        {view === "missions" && <Header aura={aura} rank={rank} />}
+        <Header presence={presence} />
 
-        {view === "missions" && (
-          <View style={styles.screen}>
-            <View style={styles.mapShell}>
-              <MapView
-                customMapStyle={mapStyle}
-                initialRegion={
-                  userLocation
-                    ? {
-                        latitude: userLocation.latitude,
-                        longitude: userLocation.longitude,
-                        latitudeDelta: 0.0042,
-                        longitudeDelta: 0.0042,
-                      }
-                    : initialRegion
-                }
-                loadingBackgroundColor="#ffffff"
-                loadingEnabled
-                loadingIndicatorColor="#ff4fa3"
-                pitchEnabled
-                ref={mapRef}
-                rotateEnabled={false}
-                showsBuildings
-                showsUserLocation={false}
-                style={styles.map}
-              >
-                <Marker coordinate={userCoordinate} onPress={() => setNearbyOpen(true)} tracksViewChanges={false}>
-                  <UserMarker />
-                </Marker>
-
-                {activeMission && missionStarted && (
-                  <Polyline
-                    coordinates={[
-                      userCoordinate,
-                      { latitude: activeMission.latitude, longitude: activeMission.longitude },
-                    ]}
-                    lineCap="round"
-                    lineJoin="round"
-                    strokeColor="#ff4fa3"
-                    strokeWidth={6}
-                  />
-                )}
-
-                {displayedMissions.map((mission) => (
-                  <Marker
-                    coordinate={{ latitude: mission.latitude, longitude: mission.longitude }}
-                    key={mission.id}
-                    onPress={() => openMission(mission)}
-                    tracksViewChanges={false}
-                  >
-                    <MissionMarker
-                      done={completed.includes(mission.id)}
-                      special={mission.difficulty === "Speciale"}
-                    />
-                  </Marker>
-                ))}
-              </MapView>
+        {view === "home" && (
+          <ScrollView contentContainerStyle={styles.screen}>
+            <SectionHeader
+              label="Accueil"
+              text="Ce que ton entourage a depose recemment."
+              title="Dernieres traces"
+            />
+            <View style={styles.traceList}>
+              {sortedTraces.map((trace) => (
+                <TraceCard
+                  key={trace.id}
+                  onAnswer={() => answerTrace(trace)}
+                  onOpenMedia={() => openMedia(trace)}
+                  trace={trace}
+                  viewed={viewedMedia.includes(trace.id)}
+                />
+              ))}
             </View>
-          </View>
+          </ScrollView>
         )}
 
-        {view === "people" && (
-          <ScrollView contentContainerStyle={styles.scrollScreen}>
-            <View style={styles.dailyCard}>
-              <Text style={styles.dailyTitle}>
-                Luffy traverse les mers depuis 20 ans, toi tu dois juste traverser la ville
+        {view === "circle" && (
+          <ScrollView contentContainerStyle={styles.screen}>
+            <SectionHeader
+              label="Entourage"
+              text="Un cercle proche, pas une scene mondiale."
+              title="Les gens qui comptent"
+            />
+            <View style={styles.peopleGrid}>
+              {["As", "Nolan", "Zer", "Maya", "Yanis", "Lina"].map((name, index) => (
+                <View key={name} style={styles.friendCard}>
+                  <View style={styles.friendAvatar}>
+                    <Text style={styles.friendInitial}>{name[0]}</Text>
+                  </View>
+                  <View style={styles.friendInfo}>
+                    <Text style={styles.friendName}>{name}</Text>
+                    <Text style={styles.friendMeta}>
+                      {index % 2 === 0 ? "A laisse une trace aujourd'hui" : "Silencieux depuis hier"}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </ScrollView>
+        )}
+
+        {view === "journal" && (
+          <ScrollView contentContainerStyle={styles.screen}>
+            <SectionHeader
+              label="Journal"
+              text="Tes traces privees et partagees, rangees comme une memoire."
+              title="Ton carnet"
+            />
+            <View style={styles.journalHero}>
+              <Text style={styles.journalNumber}>{myTraces.length}</Text>
+              <Text style={styles.journalText}>
+                {myTraces.length > 1 ? "traces laissees" : "trace laissee"} par toi
               </Text>
             </View>
-
-            <View style={styles.peopleSwitchWrap}>
-              <PeopleSwitch mode={leaderboardMode} setMode={setLeaderboardMode} />
-            </View>
-
-            {leaderboard
-              .map((person) => (person.isUser ? { ...person, aura, rank: rank.current.name } : person))
-              .sort((a, b) => b.aura - a.aura)
-              .map((person, index) => (
-                <View style={[styles.personCard, person.isUser && styles.personCardActive]} key={person.name}>
-                  <View style={styles.rankBubble}>
-                    <Text style={styles.rankBubbleText}>{index + 1}</Text>
-                  </View>
-                  <View style={styles.personInfo}>
-                    <Text style={styles.personName}>{person.name}</Text>
-                    <Text style={styles.personRank}>{person.rank}</Text>
-                  </View>
-                  <Text style={styles.personAura}>{person.aura}</Text>
-                </View>
-              ))}
-          </ScrollView>
-        )}
-
-        {view === "profile" && (
-          <ScrollView contentContainerStyle={styles.scrollScreen}>
-            <View style={styles.profileHero}>
-              <View style={styles.profileHeroTop}>
-                <View style={styles.profileAvatar}>
-                  <Text style={styles.profileAvatarText}>N</Text>
-                </View>
-                <View style={styles.profileIdentity}>
-                  <Text style={styles.profileHandle}>@ness</Text>
-                  <Text style={styles.profileRank}>{rank.current.name}</Text>
-                </View>
-              </View>
-
-              <View style={styles.profileRankPanel}>
-                <View style={styles.profileRankPanelTop}>
-                  <Text style={styles.profileRankPanelLabel}>Prochain rang</Text>
-                  <Text style={styles.profileRankPanelNext}>{rank.next?.name ?? "Max"}</Text>
-                </View>
-                <View style={styles.profileHeroTrack}>
-                  <View style={[styles.profileHeroFill, { width: `${rank.progress}%` }]} />
-                </View>
-                <Text style={styles.profileRankMissing}>
-                  {rank.next ? `${rank.needed} aura manquante` : "Rang maximum atteint"}
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.statGrid}>
-              <ProfileStat label="Compte cree" value="27 aout" />
-              <ProfileStat label="Temps total" value={`${totalMinutes || 12} min`} />
-              <ProfileStat label="Missions" value={completed.length.toString()} />
-              <ProfileStat label="Km parcourus" value={(completed.length * 1.1 + 2.4).toFixed(1)} />
-            </View>
-
-            <View style={styles.playerCard}>
-              <Text style={styles.playerTitle}>Profil joueur</Text>
-              {[
-                ["Regularite", 46, "#ff4fa3"],
-                ["Courage", 64, "#17e689"],
-                ["Exploration", 58, "#ff4fa3"],
-                ["Discipline", 40, "#17e689"],
-                ["Sociabilite", 52, "#ff4fa3"],
-              ].map(([label, value, color]) => (
-                <View style={styles.qualityRow} key={String(label)}>
-                  <Text style={styles.qualityLabel}>{label}</Text>
-                  <View style={styles.qualityTrack}>
-                    <View
-                      style={[
-                        styles.qualityFill,
-                        { backgroundColor: String(color), width: `${Number(value)}%` },
-                      ]}
-                    />
-                  </View>
-                </View>
+            <View style={styles.traceList}>
+              {(myTraces.length ? myTraces : sortedTraces.slice(0, 2)).map((trace) => (
+                <TraceCard
+                  compact
+                  key={trace.id}
+                  onAnswer={() => answerTrace(trace)}
+                  onOpenMedia={() => openMedia(trace)}
+                  trace={trace}
+                  viewed={viewedMedia.includes(trace.id)}
+                />
               ))}
             </View>
           </ScrollView>
         )}
+
+        <Pressable
+          onPress={() => setComposerOpen(true)}
+          style={({ pressed }) => [styles.composeButton, pressed && styles.pressed]}
+        >
+          <Text style={styles.composePlus}>+</Text>
+          <Text style={styles.composeText}>Trace</Text>
+        </Pressable>
 
         <View style={styles.nav}>
-          <Tab active={view === "people"} label="Personnes" onPress={() => setView("people")} />
-          <Tab active={view === "missions"} label="Missions" onPress={() => setView("missions")} />
-          <Tab active={view === "profile"} label="Profil" onPress={() => setView("profile")} />
+          <Tab active={view === "circle"} label="Entourage" onPress={() => setView("circle")} />
+          <Tab active={view === "home"} label="Accueil" onPress={() => setView("home")} />
+          <Tab active={view === "journal"} label="Journal" onPress={() => setView("journal")} />
         </View>
       </View>
 
-      <MissionModal
-        addPhotoProof={addPhotoProof}
-        close={() => {
-          setActiveMission(null);
-          setMissionStarted(false);
-          setTravelMode(null);
-        }}
-        completed={activeMission ? completed.includes(activeMission.id) : false}
-        mission={activeMission}
-        missionStarted={missionStarted}
-        photoReady={activeMission ? Boolean(photoProofs[activeMission.id]) : false}
-        startMission={startMission}
-        travelMode={travelMode}
-        validateMission={validateMission}
-      />
-
-      <NearbyMissionsModal
-        close={() => setNearbyOpen(false)}
-        missions={nearbyMissions}
-        open={nearbyOpen}
-        openMission={(mission) => {
-          setNearbyOpen(false);
-          openMission(mission);
-        }}
-      />
+      <TraceComposer close={() => setComposerOpen(false)} onCreate={addTrace} visible={composerOpen} />
     </SafeAreaView>
   );
 }
 
-function Header({
-  aura,
-  rank,
-}: {
-  aura: number;
-  rank: ReturnType<typeof getRank>;
-}) {
+function Header({ presence }: { presence: { score: number; label: string } }) {
   return (
     <View style={styles.header}>
-      <View style={styles.topRow}>
+      <View style={styles.identityRow}>
         <View style={styles.identity}>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>N</Text>
@@ -720,160 +343,219 @@ function Header({
         </View>
         <Text style={styles.logo}>WAYA</Text>
       </View>
-      <View style={styles.progressCard}>
+
+      <View style={styles.presenceCard}>
         <View>
-          <Text style={styles.progressLabel}>Rang</Text>
-          <Text style={styles.currentRank}>{rank.current.name}</Text>
+          <Text style={styles.presenceLabel}>Presence</Text>
+          <Text style={styles.presenceTitle}>{presence.label}</Text>
         </View>
-        <View style={styles.progressMiddle}>
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${rank.progress}%` }]} />
+        <View style={styles.presenceMeter}>
+          <View style={styles.presenceTrack}>
+            <View style={[styles.presenceFill, { width: `${presence.score}%` }]} />
           </View>
-          <Text style={styles.progressText}>
-            {rank.next ? `${rank.needed} aura avant ${rank.next.name}` : "Rang max"}
-          </Text>
-        </View>
-        <View>
-          <Text style={styles.progressLabel}>Aura</Text>
-          <Text style={styles.aura}>{aura}</Text>
+          <Text style={styles.presenceHint}>Ta trace monte quand tu vis, ecris et reponds.</Text>
         </View>
       </View>
     </View>
   );
 }
 
-function NearbyMissionsModal({
-  close,
-  missions,
-  open,
-  openMission,
-}: {
-  close: () => void;
-  missions: (Mission & { liveDistance: number })[];
-  open: boolean;
-  openMission: (mission: Mission) => void;
-}) {
+function SectionHeader({ label, text, title }: { label: string; text: string; title: string }) {
   return (
-    <Modal animationType="fade" onRequestClose={close} transparent visible={open}>
-      <Pressable onPress={close} style={styles.nearbyBackdrop}>
-        <Pressable style={styles.nearbyCard}>
-          <View style={styles.nearbyHeader}>
-            <Text style={styles.nearbyEyebrow}>Autour de toi</Text>
-            <Text style={styles.nearbyCount}>{missions.length}</Text>
-          </View>
-          <Text style={styles.nearbyTitle}>Missions proches</Text>
-
-          {missions.map((mission) => (
-            <Pressable
-              key={mission.id}
-              onPress={() => openMission(mission)}
-              style={({ pressed }) => [styles.nearbyMission, pressed && styles.pressed]}
-            >
-              <View style={styles.nearbyMissionText}>
-                <Text style={styles.nearbyMissionTitle}>{mission.title}</Text>
-                <Text style={styles.nearbyMissionPlace}>
-                  {mission.place} · {mission.liveDistance < 1000
-                    ? `${mission.liveDistance}m`
-                    : `${(mission.liveDistance / 1000).toFixed(1)}km`}
-                </Text>
-              </View>
-              <Text style={styles.nearbyAura}>+{mission.aura}</Text>
-            </Pressable>
-          ))}
-        </Pressable>
-      </Pressable>
-    </Modal>
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionLabel}>{label}</Text>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      <Text style={styles.sectionText}>{text}</Text>
+    </View>
   );
 }
 
-function MissionModal({
-  addPhotoProof,
-  close,
-  mission,
-  missionStarted,
-  photoReady,
-  startMission,
-  travelMode,
-  validateMission,
+function TraceCard({
+  compact,
+  onAnswer,
+  onOpenMedia,
+  trace,
+  viewed,
 }: {
-  addPhotoProof: () => void;
-  close: () => void;
-  completed: boolean;
-  mission: Mission | null;
-  missionStarted: boolean;
-  photoReady: boolean;
-  startMission: (mode: TravelMode) => void;
-  travelMode: TravelMode | null;
-  validateMission: () => void;
+  compact?: boolean;
+  onAnswer: () => void;
+  onOpenMedia: () => void;
+  trace: Trace;
+  viewed: boolean;
 }) {
-  const lastTapRef = useRef(0);
-  const [choosingTransport, setChoosingTransport] = useState(false);
+  const hasMedia = Boolean(trace.mediaKind);
 
-  if (!mission) {
-    return null;
+  return (
+    <View
+      style={[
+        styles.traceCard,
+        hasMedia && styles.traceCardMedia,
+        hasMedia && viewed && styles.traceCardViewed,
+        compact && styles.traceCardCompact,
+      ]}
+    >
+      <View style={styles.traceTop}>
+        <View style={styles.traceAuthorWrap}>
+          <View style={[styles.traceAvatar, hasMedia && styles.traceAvatarMedia]}>
+            <Text style={styles.traceAvatarText}>{trace.author[0]}</Text>
+          </View>
+          <View>
+            <Text style={styles.traceAuthor}>{trace.author}</Text>
+            <Text style={styles.traceMeta}>
+              {trace.handle} · {formatTraceTime(trace.createdAt)} · {visibilityLabel(trace.visibility)}
+            </Text>
+          </View>
+        </View>
+        {hasMedia && (
+          <Pressable onPress={onOpenMedia} style={[styles.mediaBadge, viewed && styles.mediaBadgeViewed]}>
+            <Text style={[styles.mediaBadgeText, viewed && styles.mediaBadgeTextViewed]}>
+              {trace.mediaKind === "video" ? "Video" : "Photo"}
+            </Text>
+          </Pressable>
+        )}
+      </View>
+
+      <Text style={styles.traceText}>{trace.text}</Text>
+
+      {trace.mediaUri && trace.mediaKind === "photo" && trace.isMine && (
+        <Image source={{ uri: trace.mediaUri }} style={styles.traceImage} />
+      )}
+
+      <View style={styles.traceFooter}>
+        <Text style={styles.traceContext}>
+          {[trace.mood, trace.place].filter(Boolean).join(" · ") || "trace simple"}
+        </Text>
+        <Pressable onPress={onAnswer} style={styles.replyButton}>
+          <Text style={styles.replyText}>{trace.replies ? `${trace.replies} reponses` : "Repondre"}</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+function TraceComposer({
+  close,
+  onCreate,
+  visible,
+}: {
+  close: () => void;
+  onCreate: (trace: Omit<Trace, "id" | "createdAt" | "author" | "handle" | "isMine" | "replies">) => void;
+  visible: boolean;
+}) {
+  const [text, setText] = useState("");
+  const [visibility, setVisibility] = useState<Visibility>("circle");
+  const [mediaKind, setMediaKind] = useState<MediaKind | undefined>();
+  const [mediaUri, setMediaUri] = useState<string | undefined>();
+  const [mood, setMood] = useState("");
+  const [place, setPlace] = useState("");
+
+  function reset() {
+    setText("");
+    setVisibility("circle");
+    setMediaKind(undefined);
+    setMediaUri(undefined);
+    setMood("");
+    setPlace("");
   }
 
-  function closeOnDoubleTap() {
-    const now = Date.now();
+  async function addMedia() {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
-    if (now - lastTapRef.current < 320) {
-      close();
+    if (permission.status !== "granted") {
+      Alert.alert("Acces refuse", "Autorise les photos pour attacher un media a ta trace.");
       return;
     }
 
-    lastTapRef.current = now;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      allowsEditing: false,
+      mediaTypes: ImagePicker.MediaTypeOptions.All,
+      quality: 0.75,
+    });
+
+    if (!result.canceled) {
+      const asset = result.assets[0];
+      setMediaUri(asset?.uri);
+      setMediaKind(asset?.type === "video" ? "video" : "photo");
+    }
+  }
+
+  function submit() {
+    const cleanText = text.trim();
+
+    if (!cleanText && !mediaUri) {
+      Alert.alert("Trace vide", "Pose une phrase ou ajoute un media avant de deposer ta trace.");
+      return;
+    }
+
+    onCreate({
+      text: cleanText || "Un moment depose sans phrase.",
+      visibility,
+      mood: mood.trim() || undefined,
+      place: place.trim() || undefined,
+      mediaKind,
+      mediaUri,
+    });
+    reset();
+  }
+
+  function closeAndReset() {
+    reset();
+    close();
   }
 
   return (
-    <Modal animationType="slide" onRequestClose={close} transparent visible>
-      <View style={styles.modalBackdrop}>
-        <View style={styles.modalCard}>
-          <Pressable onPress={closeOnDoubleTap}>
-            <Text style={styles.modalEyebrow}>{missionStarted ? "Mission active" : "Detail mission"}</Text>
-            <Text style={styles.modalTitle}>{mission.title}</Text>
-            <Text style={styles.modalPlace}>{mission.place}</Text>
-            <Text style={styles.modalDetail}>{mission.detail}</Text>
-
-            <View style={styles.modalStats}>
-              <SmallStat label="Aura" value={`+${mission.aura}`} />
-              <SmallStat label="Niveau" value={mission.difficulty} />
-              <SmallStat label="Rayon" value={`${mission.radius}m`} />
+    <Modal animationType="fade" onRequestClose={closeAndReset} transparent visible={visible}>
+      <View style={styles.composerBackdrop}>
+        <View style={styles.composerCard}>
+          <View style={styles.composerTop}>
+            <View>
+              <Text style={styles.composerLabel}>Laisser une trace</Text>
+              <Text style={styles.composerTitle}>Qu'est-ce que tu gardes d'aujourd'hui ?</Text>
             </View>
+            <Pressable onPress={closeAndReset} style={styles.closeButton}>
+              <Text style={styles.closeText}>x</Text>
+            </Pressable>
+          </View>
 
-            {missionStarted && travelMode && (
-              <Text style={styles.routeMode}>
-                Mode {travelMode === "walk" ? "a pied" : "velo"} active - suis le trace rose.
-              </Text>
-            )}
+          <TextInput
+            multiline
+            onChangeText={setText}
+            placeholder="Pose une phrase, meme courte..."
+            placeholderTextColor="#AAA5B1"
+            style={styles.input}
+            value={text}
+          />
+
+          <View style={styles.inlineInputs}>
+            <TextInput
+              onChangeText={setMood}
+              placeholder="humeur"
+              placeholderTextColor="#AAA5B1"
+              style={styles.miniInput}
+              value={mood}
+            />
+            <TextInput
+              onChangeText={setPlace}
+              placeholder="lieu approx."
+              placeholderTextColor="#AAA5B1"
+              style={styles.miniInput}
+              value={place}
+            />
+          </View>
+
+          <View style={styles.visibilityRow}>
+            <VisibilityPill active={visibility === "private"} label="Prive" onPress={() => setVisibility("private")} />
+            <VisibilityPill active={visibility === "circle"} label="Entourage" onPress={() => setVisibility("circle")} />
+            <VisibilityPill active={visibility === "local"} label="Public local" onPress={() => setVisibility("local")} />
+          </View>
+
+          <Pressable onPress={addMedia} style={[styles.mediaPicker, mediaKind && styles.mediaPickerActive]}>
+            <Text style={styles.mediaPickerTitle}>{mediaKind ? `${mediaKind} attachee` : "Ajouter photo/video"}</Text>
+            <Text style={styles.mediaPickerText}>Visible une seule fois par les autres.</Text>
           </Pressable>
 
-          {!missionStarted && choosingTransport && (
-            <View style={styles.inlineTransport}>
-              <View style={styles.transportChoices}>
-                <TransportChoice icon="P" label="A pied" onPress={() => startMission("walk")} />
-                <TransportChoice icon="V" label="Velo" onPress={() => startMission("bike")} />
-                <TransportChoice disabled icon="T" label="Trottinette" onPress={() => startMission("scooter")} />
-              </View>
-              <Text style={styles.transportWarning}>
-                Les trottinettes electriques ne sont pas compatibles pour le moment.
-              </Text>
-            </View>
-          )}
-
-          {missionStarted && (
-            <Pressable onPress={addPhotoProof} style={styles.photoButton}>
-              <Text style={styles.photoTitle}>{photoReady ? "Preuve photo ajoutee" : "Ajouter une preuve photo"}</Text>
-              <Text style={styles.photoText}>{photoReady ? "La preuve est prete." : mission.proof}</Text>
-            </Pressable>
-          )}
-
-          <Pressable
-            onPress={missionStarted ? validateMission : () => setChoosingTransport((current) => !current)}
-            style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}
-          >
-            <Text style={styles.primaryButtonText}>
-              {missionStarted ? "Valider la mission" : "Demarrer la mission"}
-            </Text>
+          <Pressable onPress={submit} style={({ pressed }) => [styles.depositButton, pressed && styles.pressed]}>
+            <Text style={styles.depositText}>Deposer la trace</Text>
           </Pressable>
         </View>
       </View>
@@ -881,113 +563,15 @@ function MissionModal({
   );
 }
 
-function TransportChoice({
-  disabled,
-  icon,
-  label,
-  onPress,
-}: {
-  disabled?: boolean;
-  icon: string;
-  label: string;
-  onPress: () => void;
-}) {
+function VisibilityPill({ active, label, onPress }: { active: boolean; label: string; onPress: () => void }) {
   return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.transportChoice,
-        disabled && styles.transportChoiceDisabled,
-        pressed && styles.pressed,
-      ]}
-    >
-      <View style={[styles.transportIcon, disabled && styles.transportIconDisabled]}>
-        <Text style={[styles.transportIconText, disabled && styles.transportIconTextDisabled]}>{icon}</Text>
-      </View>
-      <Text style={[styles.transportChoiceText, disabled && styles.transportChoiceTextDisabled]}>{label}</Text>
+    <Pressable onPress={onPress} style={[styles.visibilityPill, active && styles.visibilityPillActive]}>
+      <Text style={[styles.visibilityText, active && styles.visibilityTextActive]}>{label}</Text>
     </Pressable>
   );
 }
 
-function SmallStat({ label, tone = "pink", value }: { label: string; tone?: "pink" | "green"; value: string }) {
-  const isGreen = tone === "green";
-
-  return (
-    <View style={[styles.smallStat, isGreen && styles.smallStatGreen]}>
-      <Text style={[styles.smallStatLabel, isGreen && styles.smallStatLabelGreen]}>{label}</Text>
-      <Text style={[styles.smallStatValue, isGreen && styles.smallStatValueGreen]}>{value}</Text>
-    </View>
-  );
-}
-
-function ProfileStat({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.profileStat}>
-      <Text style={styles.profileStatLabel}>{label}</Text>
-      <Text style={styles.profileStatValue}>{value}</Text>
-    </View>
-  );
-}
-
-function MissionMarker({ done, special }: { done: boolean; special: boolean }) {
-  return (
-    <View style={[styles.markerHalo, special && styles.markerHaloSpecial]}>
-      <View style={[styles.marker, done && styles.markerDone]}>
-        <View style={styles.walkerHead} />
-        <View style={styles.walkerBody} />
-        <View style={styles.walkerArm} />
-        <View style={styles.walkerLegLeft} />
-        <View style={styles.walkerLegRight} />
-      </View>
-    </View>
-  );
-}
-
-function UserMarker() {
-  return (
-    <View style={styles.userMarkerWrap}>
-      <View style={styles.userMarkerPulse} />
-      <View style={styles.userMarker}>
-        <Text style={styles.userMarkerText}>Toi</Text>
-      </View>
-    </View>
-  );
-}
-
-function PeopleSwitch({
-  mode,
-  setMode,
-}: {
-  mode: LeaderboardMode;
-  setMode: (mode: LeaderboardMode) => void;
-}) {
-  return (
-    <View style={styles.peopleSwitch}>
-      <Pressable
-        onPress={() => setMode("friends")}
-        style={[styles.peopleSwitchTab, mode === "friends" && styles.peopleSwitchTabActive]}
-      >
-        <Text style={[styles.peopleSwitchText, mode === "friends" && styles.peopleSwitchTextActive]}>Amis</Text>
-      </Pressable>
-      <Pressable
-        onPress={() => setMode("public")}
-        style={[styles.peopleSwitchTab, mode === "public" && styles.peopleSwitchTabActive]}
-      >
-        <Text style={[styles.peopleSwitchText, mode === "public" && styles.peopleSwitchTextActive]}>Publics</Text>
-      </Pressable>
-    </View>
-  );
-}
-
-function Tab({
-  active,
-  label,
-  onPress,
-}: {
-  active: boolean;
-  label: string;
-  onPress: () => void;
-}) {
+function Tab({ active, label, onPress }: { active: boolean; label: string; onPress: () => void }) {
   return (
     <Pressable onPress={onPress} style={[styles.tab, active && styles.tabActive]}>
       <Text style={[styles.tabText, active && styles.tabTextActive]}>{label}</Text>
@@ -997,780 +581,519 @@ function Tab({
 
 const styles = StyleSheet.create({
   app: {
-    backgroundColor: "#fbfcfc",
+    backgroundColor: "#FAF9FC",
     flex: 1,
-  },
-  aura: {
-    color: "#ff4fa3",
-    fontSize: 20,
-    fontWeight: "900",
-    textAlign: "right",
   },
   avatar: {
     alignItems: "center",
-    backgroundColor: "#101214",
-    borderRadius: 24,
-    height: 44,
+    backgroundColor: black,
+    borderRadius: 27,
+    height: 54,
     justifyContent: "center",
-    width: 44,
+    width: 54,
   },
   avatarText: {
-    color: "#ffffff",
+    color: "#FFFFFF",
+    fontSize: 19,
     fontWeight: "900",
   },
-  currentRank: {
-    color: "#101214",
+  closeButton: {
+    alignItems: "center",
+    backgroundColor: "#F7F5FA",
+    borderColor: border,
+    borderRadius: 18,
+    borderWidth: 1,
+    height: 36,
+    justifyContent: "center",
+    width: 36,
+  },
+  closeText: {
+    color: black,
     fontSize: 20,
     fontWeight: "900",
   },
-  dailyCard: {
-    backgroundColor: "#ff4fa3",
-    borderRadius: 24,
-    marginBottom: 2,
-    padding: 16,
-  },
-  dailyText: {
-    color: "rgba(255,255,255,0.82)",
-    fontSize: 14,
-    fontWeight: "800",
-    marginTop: 8,
-  },
-  dailyTitle: {
-    color: "#ffffff",
-    fontSize: 18,
-    fontWeight: "900",
-    lineHeight: 23,
-  },
-  handle: {
-    color: "rgba(0,0,0,0.45)",
-    fontSize: 12,
-    fontWeight: "800",
-    marginTop: 2,
-  },
-  header: {
-    backgroundColor: "#fbfcfc",
-    paddingHorizontal: 18,
-    paddingTop: 6,
-  },
-  identity: {
+  composeButton: {
     alignItems: "center",
-    flexDirection: "row",
-    gap: 10,
-    zIndex: 1,
-  },
-  logo: {
-    color: "#ff4fa3",
-    fontSize: 29,
-    fontWeight: "900",
-    left: 0,
-    letterSpacing: 0.4,
+    backgroundColor: purple,
+    borderColor: "rgba(255,255,255,0.7)",
+    borderRadius: 28,
+    borderWidth: 4,
+    bottom: 86,
+    elevation: 10,
+    height: 72,
+    justifyContent: "center",
+    left: "50%",
+    marginLeft: -36,
     position: "absolute",
-    right: 0,
-    textAlign: "center",
-  },
-  map: {
-    flex: 1,
-  },
-  mapShell: {
-    borderColor: "#ffffff",
-    borderRadius: 34,
-    borderWidth: 6,
-    flex: 1,
-    marginBottom: 92,
-    marginHorizontal: 10,
-    marginTop: 4,
-    overflow: "hidden",
-    shadowColor: "#000000",
-    shadowOpacity: 0.08,
+    shadowColor: purple,
+    shadowOpacity: 0.3,
     shadowRadius: 18,
+    width: 72,
   },
-  marker: {
-    alignItems: "center",
-    backgroundColor: "#ff4fa3",
-    borderRadius: 18,
-    height: 36,
-    justifyContent: "center",
-    shadowColor: "#ff4fa3",
-    shadowOpacity: 0.28,
-    shadowRadius: 8,
-    width: 36,
+  composePlus: {
+    color: "#FFFFFF",
+    fontSize: 28,
+    fontWeight: "800",
+    lineHeight: 30,
   },
-  markerDone: {
-    backgroundColor: "#17e689",
+  composeText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "900",
+    marginTop: -2,
   },
-  markerHalo: {
-    alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.82)",
-    borderRadius: 22,
-    height: 44,
-    justifyContent: "center",
-    shadowColor: "#000000",
-    shadowOpacity: 0.16,
-    shadowRadius: 8,
-    width: 44,
-  },
-  markerHaloSpecial: {
-    backgroundColor: "rgba(255,79,163,0.18)",
-  },
-  modalBackdrop: {
-    backgroundColor: "rgba(0,0,0,0.25)",
+  composerBackdrop: {
+    backgroundColor: "rgba(9,10,12,0.24)",
     flex: 1,
     justifyContent: "flex-end",
   },
-  modalCard: {
-    backgroundColor: "#ffffff",
+  composerCard: {
+    backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 34,
     borderTopRightRadius: 34,
     padding: 20,
     paddingBottom: 34,
   },
-  modalDetail: {
-    color: "rgba(0,0,0,0.58)",
-    fontSize: 15,
-    fontWeight: "700",
-    lineHeight: 23,
-    marginTop: 12,
-  },
-  modalEyebrow: {
-    color: "#ff4fa3",
+  composerLabel: {
+    color: purple,
     fontSize: 12,
     fontWeight: "900",
     letterSpacing: 2,
     textTransform: "uppercase",
   },
-  modalHandle: {
-    alignSelf: "center",
-    backgroundColor: "rgba(0,0,0,0.16)",
-    borderRadius: 20,
-    height: 5,
-    marginBottom: 18,
-    width: 52,
-  },
-  modalPlace: {
-    color: "#17b978",
-    fontSize: 13,
+  composerTitle: {
+    color: black,
+    fontSize: 24,
     fontWeight: "900",
-    letterSpacing: 1.4,
-    marginTop: 6,
-    textTransform: "uppercase",
-  },
-  modalStats: {
-    flexDirection: "row",
-    gap: 8,
-    marginTop: 16,
-  },
-  modalTitle: {
-    color: "#101214",
-    fontSize: 28,
-    fontWeight: "900",
+    lineHeight: 28,
     marginTop: 8,
+    maxWidth: 270,
   },
-  name: {
-    color: "#101214",
-    fontSize: 14,
+  composerTop: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  depositButton: {
+    alignItems: "center",
+    backgroundColor: purple,
+    borderRadius: 24,
+    marginTop: 16,
+    paddingVertical: 17,
+  },
+  depositText: {
+    color: "#FFFFFF",
+    fontSize: 16,
     fontWeight: "900",
   },
-  nearbyAura: {
-    color: "#ff4fa3",
-    fontSize: 17,
-    fontWeight: "900",
-  },
-  nearbyBackdrop: {
-    backgroundColor: "rgba(0,0,0,0.18)",
-    flex: 1,
+  friendAvatar: {
+    alignItems: "center",
+    backgroundColor: black,
+    borderRadius: 23,
+    height: 46,
     justifyContent: "center",
-    padding: 22,
+    width: 46,
   },
-  nearbyCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: 28,
-    padding: 18,
-    shadowColor: "#000000",
-    shadowOpacity: 0.16,
-    shadowRadius: 24,
+  friendCard: {
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderColor: border,
+    borderRadius: 26,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 12,
+    padding: 14,
+    shadowColor: "#17111F",
+    shadowOpacity: 0.04,
+    shadowRadius: 14,
   },
-  nearbyCount: {
-    backgroundColor: "#fff1f8",
-    borderRadius: 999,
-    color: "#ff4fa3",
-    fontSize: 15,
+  friendInfo: {
+    flex: 1,
+  },
+  friendInitial: {
+    color: "#FFFFFF",
+    fontSize: 16,
     fontWeight: "900",
-    overflow: "hidden",
-    paddingHorizontal: 13,
-    paddingVertical: 6,
   },
-  nearbyEyebrow: {
-    color: "#ff4fa3",
-    fontSize: 12,
+  friendMeta: {
+    color: muted,
+    fontSize: 13,
+    fontWeight: "700",
+    marginTop: 3,
+  },
+  friendName: {
+    color: black,
+    fontSize: 18,
     fontWeight: "900",
-    letterSpacing: 2,
-    textTransform: "uppercase",
   },
-  nearbyHeader: {
+  handle: {
+    color: muted,
+    fontSize: 13,
+    fontWeight: "800",
+    marginTop: 2,
+  },
+  header: {
+    backgroundColor: "#FAF9FC",
+    paddingHorizontal: 18,
+    paddingTop: 8,
+  },
+  identity: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 12,
+  },
+  identityRow: {
     alignItems: "center",
     flexDirection: "row",
     justifyContent: "space-between",
   },
-  nearbyMission: {
-    alignItems: "center",
-    backgroundColor: "#fbfcfc",
-    borderColor: "rgba(0,0,0,0.06)",
-    borderRadius: 20,
-    borderWidth: 1,
+  inlineInputs: {
     flexDirection: "row",
-    marginTop: 10,
-    padding: 13,
+    gap: 10,
+    marginTop: 12,
   },
-  nearbyMissionPlace: {
-    color: "rgba(0,0,0,0.45)",
+  input: {
+    backgroundColor: "#FBFAFD",
+    borderColor: border,
+    borderRadius: 24,
+    borderWidth: 1,
+    color: black,
+    fontSize: 19,
+    fontWeight: "700",
+    lineHeight: 26,
+    marginTop: 18,
+    minHeight: 136,
+    padding: 18,
+    textAlignVertical: "top",
+  },
+  journalHero: {
+    backgroundColor: black,
+    borderRadius: 32,
+    padding: 22,
+  },
+  journalNumber: {
+    color: "#FFFFFF",
+    fontSize: 62,
+    fontWeight: "900",
+    lineHeight: 66,
+  },
+  journalText: {
+    color: "rgba(255,255,255,0.62)",
+    fontSize: 16,
+    fontWeight: "800",
+    marginTop: 4,
+  },
+  logo: {
+    color: purple,
+    fontSize: 30,
+    fontWeight: "900",
+    letterSpacing: 1,
+  },
+  mediaBadge: {
+    backgroundColor: softPurple,
+    borderColor: "#D8C7FF",
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  mediaBadgeText: {
+    color: purple,
+    fontSize: 11,
+    fontWeight: "900",
+  },
+  mediaBadgeTextViewed: {
+    color: "#AAA5B1",
+  },
+  mediaBadgeViewed: {
+    backgroundColor: "#F5F3F7",
+    borderColor: border,
+  },
+  mediaPicker: {
+    backgroundColor: "#FBFAFD",
+    borderColor: border,
+    borderRadius: 22,
+    borderStyle: "dashed",
+    borderWidth: 1,
+    marginTop: 12,
+    padding: 15,
+  },
+  mediaPickerActive: {
+    backgroundColor: softPurple,
+    borderColor: "#D8C7FF",
+  },
+  mediaPickerText: {
+    color: muted,
     fontSize: 12,
     fontWeight: "800",
     marginTop: 3,
   },
-  nearbyMissionText: {
-    flex: 1,
-  },
-  nearbyMissionTitle: {
-    color: "#101214",
+  mediaPickerTitle: {
+    color: black,
     fontSize: 15,
     fontWeight: "900",
   },
-  nearbyTitle: {
-    color: "#101214",
-    fontSize: 27,
+  miniInput: {
+    backgroundColor: "#FBFAFD",
+    borderColor: border,
+    borderRadius: 18,
+    borderWidth: 1,
+    color: black,
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "800",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  name: {
+    color: black,
+    fontSize: 19,
     fontWeight: "900",
-    marginBottom: 6,
-    marginTop: 6,
   },
   nav: {
-    backgroundColor: "#ffffff",
+    backgroundColor: "rgba(255,255,255,0.94)",
+    borderColor: "rgba(232,229,237,0.85)",
     borderRadius: 34,
-    bottom: 20,
+    borderWidth: 1,
+    bottom: 18,
     elevation: 8,
     flexDirection: "row",
-    gap: 4,
+    gap: 6,
     left: 18,
     padding: 8,
     position: "absolute",
     right: 18,
-    shadowColor: "#000000",
-    shadowOpacity: 0.12,
-    shadowRadius: 18,
+    shadowColor: "#17111F",
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
   },
-  personAura: {
-    color: "#17e689",
-    fontSize: 18,
-    fontWeight: "900",
+  peopleGrid: {
+    gap: 12,
   },
-  personCard: {
+  presenceCard: {
     alignItems: "center",
-    backgroundColor: "#ffffff",
-    borderColor: "rgba(0,0,0,0.06)",
-    borderRadius: 26,
-    borderWidth: 1,
-    flexDirection: "row",
-    marginBottom: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-  },
-  personCardActive: {
-    backgroundColor: "#fff1f8",
-    borderColor: "#ff4fa3",
-    borderWidth: 2,
-  },
-  personInfo: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  personName: {
-    color: "#101214",
-    fontSize: 18,
-    fontWeight: "900",
-  },
-  personRank: {
-    color: "rgba(0,0,0,0.45)",
-    fontSize: 13,
-    fontWeight: "800",
-  },
-  peopleSwitch: {
-    alignSelf: "flex-start",
-    backgroundColor: "#ffffff",
-    borderColor: "rgba(0,0,0,0.06)",
-    borderRadius: 999,
-    borderWidth: 1,
-    flexDirection: "row",
-    gap: 4,
-    padding: 5,
-    shadowColor: "#000000",
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-  },
-  peopleSwitchTab: {
-    borderRadius: 999,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  peopleSwitchWrap: {
-    marginBottom: 8,
-    marginTop: 6,
-  },
-  peopleSwitchTabActive: {
-    backgroundColor: "#101214",
-  },
-  peopleSwitchText: {
-    color: "rgba(0,0,0,0.45)",
-    fontSize: 13,
-    fontWeight: "900",
-  },
-  peopleSwitchTextActive: {
-    color: "#ffffff",
-  },
-  photoButton: {
-    backgroundColor: "#fff2f8",
-    borderColor: "rgba(255,79,163,0.35)",
-    borderRadius: 20,
-    borderStyle: "dashed",
-    borderWidth: 1,
-    marginTop: 14,
-    padding: 14,
-  },
-  photoText: {
-    color: "rgba(0,0,0,0.5)",
-    fontSize: 12,
-    fontWeight: "800",
-    marginTop: 4,
-  },
-  photoTitle: {
-    color: "#101214",
-    fontSize: 15,
-    fontWeight: "900",
-  },
-  playerCard: {
-    backgroundColor: "#ffffff",
-    borderColor: "rgba(0,0,0,0.06)",
+    backgroundColor: "#FFFFFF",
+    borderColor: border,
     borderRadius: 30,
     borderWidth: 1,
+    flexDirection: "row",
+    gap: 18,
+    marginTop: 22,
     padding: 18,
+    shadowColor: "#17111F",
+    shadowOpacity: 0.04,
+    shadowRadius: 18,
   },
-  playerTitle: {
-    color: "#101214",
-    fontSize: 26,
+  presenceFill: {
+    backgroundColor: purple,
+    borderRadius: 999,
+    height: "100%",
+  },
+  presenceHint: {
+    color: muted,
+    fontSize: 11,
+    fontWeight: "800",
+    marginTop: 7,
+  },
+  presenceLabel: {
+    color: muted,
+    fontSize: 12,
     fontWeight: "900",
-    marginBottom: 18,
+  },
+  presenceMeter: {
+    flex: 1,
+  },
+  presenceTitle: {
+    color: black,
+    fontSize: 22,
+    fontWeight: "900",
+    marginTop: 4,
+  },
+  presenceTrack: {
+    backgroundColor: "#EFEDF2",
+    borderRadius: 999,
+    height: 9,
+    overflow: "hidden",
   },
   pressed: {
-    transform: [{ scale: 0.98 }],
+    transform: [{ scale: 0.97 }],
   },
-  primaryButton: {
-    alignItems: "center",
-    backgroundColor: "#ff4fa3",
-    borderRadius: 22,
-    marginTop: 18,
-    padding: 16,
-  },
-  primaryButtonText: {
-    color: "#ffffff",
-    fontSize: 16,
-    fontWeight: "900",
-  },
-  profileAvatar: {
-    alignItems: "center",
-    backgroundColor: "#ffffff",
-    borderRadius: 28,
-    height: 82,
-    justifyContent: "center",
-    width: 82,
-  },
-  profileAvatarText: {
-    color: "#101214",
-    fontSize: 34,
-    fontWeight: "900",
-  },
-  profileHandle: {
-    color: "rgba(255,255,255,0.5)",
-    fontSize: 14,
-    fontWeight: "800",
-  },
-  profileHero: {
-    backgroundColor: "#101214",
-    borderRadius: 32,
-    gap: 22,
-    padding: 20,
-  },
-  profileHeroTop: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 16,
-  },
-  profileIdentity: {
-    flex: 1,
-  },
-  profileRankPanel: {
-    backgroundColor: "rgba(255,255,255,0.1)",
-    borderRadius: 26,
-    padding: 16,
-  },
-  profileRankPanelTop: {
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 14,
-  },
-  profileRankPanelLabel: {
-    color: "rgba(255,255,255,0.52)",
-    fontSize: 15,
-    fontWeight: "900",
-  },
-  profileRankPanelNext: {
-    color: "#ffffff",
-    fontSize: 18,
-    fontWeight: "900",
-  },
-  profileHeroTrack: {
-    backgroundColor: "rgba(255,255,255,0.16)",
+  replyButton: {
+    backgroundColor: "#F7F5FA",
     borderRadius: 999,
-    height: 10,
-    overflow: "hidden",
+    paddingHorizontal: 11,
+    paddingVertical: 8,
   },
-  profileHeroFill: {
-    backgroundColor: "#ff4fa3",
-    borderRadius: 999,
-    height: "100%",
-  },
-  profileRankMissing: {
-    color: "rgba(255,255,255,0.52)",
-    fontSize: 13,
-    fontWeight: "900",
-    marginTop: 10,
-  },
-  profileRank: {
-    color: "#ffffff",
-    fontSize: 38,
-    fontWeight: "900",
-  },
-  profileStat: {
-    backgroundColor: "#ffffff",
-    borderColor: "rgba(0,0,0,0.06)",
-    borderRadius: 24,
-    borderWidth: 1,
-    minHeight: 110,
-    padding: 16,
-    width: "48%",
-  },
-  profileStatLabel: {
-    color: "rgba(0,0,0,0.45)",
-    fontSize: 14,
-    fontWeight: "900",
-  },
-  profileStatValue: {
-    color: "#101214",
-    fontSize: 30,
-    fontWeight: "900",
-    marginTop: 16,
-  },
-  progressCard: {
-    alignItems: "center",
-    backgroundColor: "#fbfcfc",
-    borderColor: "rgba(0,0,0,0.05)",
-    borderRadius: 26,
-    borderWidth: 1,
-    flexDirection: "row",
-    gap: 12,
-    marginTop: 22,
-    paddingHorizontal: 14,
-    paddingVertical: 18,
-  },
-  progressFill: {
-    backgroundColor: "#17e689",
-    borderRadius: 999,
-    height: "100%",
-  },
-  progressLabel: {
-    color: "rgba(0,0,0,0.45)",
+  replyText: {
+    color: black,
     fontSize: 12,
-    fontWeight: "800",
-  },
-  progressMiddle: {
-    flex: 1,
-  },
-  progressText: {
-    color: "rgba(0,0,0,0.45)",
-    fontSize: 12,
-    fontWeight: "800",
-    marginTop: 8,
-    textAlign: "center",
-  },
-  progressTrack: {
-    backgroundColor: "rgba(0,0,0,0.06)",
-    borderRadius: 999,
-    height: 10,
-    overflow: "hidden",
-  },
-  qualityFill: {
-    borderRadius: 999,
-    height: "100%",
-  },
-  qualityLabel: {
-    color: "#101214",
-    fontSize: 14,
     fontWeight: "900",
-    marginBottom: 7,
-  },
-  qualityRow: {
-    marginBottom: 15,
-  },
-  qualityTrack: {
-    backgroundColor: "rgba(0,0,0,0.05)",
-    borderRadius: 999,
-    height: 10,
-    overflow: "hidden",
-  },
-  rankBubble: {
-    alignItems: "center",
-    backgroundColor: "#101214",
-    borderRadius: 18,
-    height: 52,
-    justifyContent: "center",
-    width: 52,
-  },
-  rankBubbleText: {
-    color: "#ffffff",
-    fontSize: 16,
-    fontWeight: "900",
-  },
-  routeMode: {
-    backgroundColor: "#fff1f8",
-    borderRadius: 16,
-    color: "#ff4fa3",
-    fontSize: 13,
-    fontWeight: "900",
-    marginTop: 14,
-    overflow: "hidden",
-    paddingHorizontal: 12,
-    paddingVertical: 9,
   },
   safe: {
-    backgroundColor: "#f7f7f8",
+    backgroundColor: "#FAF9FC",
     flex: 1,
   },
   screen: {
-    flex: 1,
+    gap: 16,
+    padding: 18,
+    paddingBottom: 178,
+  },
+  sectionHeader: {
     paddingTop: 10,
   },
-  scrollScreen: {
-    backgroundColor: "#f7f7f8",
-    gap: 8,
-    padding: 18,
-    paddingBottom: 118,
-  },
-  smallStat: {
-    backgroundColor: "#fff1f8",
-    borderRadius: 18,
-    flex: 1,
-    padding: 10,
-  },
-  smallStatGreen: {
-    backgroundColor: "#eafff5",
-  },
-  smallStatLabel: {
-    color: "rgba(0,0,0,0.45)",
-    fontSize: 11,
-    fontWeight: "800",
-  },
-  smallStatLabelGreen: {
-    color: "#119e63",
-  },
-  smallStatValue: {
-    color: "#101214",
-    fontSize: 14,
+  sectionLabel: {
+    color: purple,
+    fontSize: 12,
     fontWeight: "900",
-    marginTop: 5,
+    letterSpacing: 2,
+    textTransform: "uppercase",
   },
-  smallStatValueGreen: {
-    color: "#17b978",
+  sectionText: {
+    color: muted,
+    fontSize: 15,
+    fontWeight: "700",
+    lineHeight: 22,
+    marginTop: 6,
   },
-  statGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-    justifyContent: "space-between",
-  },
-  userMarker: {
-    alignItems: "center",
-    backgroundColor: "#101214",
-    borderColor: "#ff4fa3",
-    borderRadius: 999,
-    borderWidth: 3,
-    minWidth: 54,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    shadowColor: "#ff4fa3",
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-  },
-  userMarkerPulse: {
-    backgroundColor: "rgba(255,79,163,0.2)",
-    borderRadius: 999,
-    height: 72,
-    position: "absolute",
-    width: 72,
-  },
-  userMarkerText: {
-    color: "#ffffff",
-    fontSize: 13,
+  sectionTitle: {
+    color: black,
+    fontSize: 34,
     fontWeight: "900",
-  },
-  userMarkerWrap: {
-    alignItems: "center",
-    height: 72,
-    justifyContent: "center",
-    width: 72,
+    letterSpacing: 0,
+    lineHeight: 38,
+    marginTop: 8,
   },
   tab: {
     alignItems: "center",
     borderRadius: 26,
     flex: 1,
-    paddingVertical: 16,
+    paddingVertical: 15,
   },
   tabActive: {
-    backgroundColor: "#101214",
+    backgroundColor: black,
   },
   tabText: {
-    color: "rgba(0,0,0,0.42)",
-    fontSize: 15,
+    color: "#9A96A1",
+    fontSize: 14,
     fontWeight: "900",
   },
   tabTextActive: {
-    color: "#ffffff",
+    color: "#FFFFFF",
   },
-  inlineTransport: {
-    gap: 10,
-    marginTop: 16,
+  traceAuthor: {
+    color: black,
+    fontSize: 16,
+    fontWeight: "900",
   },
-  transportChoice: {
+  traceAuthorWrap: {
     alignItems: "center",
-    backgroundColor: "#fff1f8",
-    borderColor: "rgba(255,79,163,0.24)",
-    borderRadius: 22,
-    borderWidth: 1,
     flex: 1,
-    gap: 8,
-    paddingVertical: 14,
-  },
-  transportChoiceDisabled: {
-    backgroundColor: "#f3f3f3",
-    borderColor: "rgba(0,0,0,0.08)",
-  },
-  transportChoices: {
     flexDirection: "row",
     gap: 10,
-    marginTop: 16,
   },
-  transportChoiceText: {
-    color: "#101214",
-    fontSize: 12,
+  traceAvatar: {
+    alignItems: "center",
+    backgroundColor: black,
+    borderRadius: 19,
+    height: 38,
+    justifyContent: "center",
+    width: 38,
+  },
+  traceAvatarMedia: {
+    backgroundColor: purple,
+  },
+  traceAvatarText: {
+    color: "#FFFFFF",
+    fontSize: 14,
     fontWeight: "900",
   },
-  transportChoiceTextDisabled: {
-    color: "rgba(0,0,0,0.38)",
+  traceCard: {
+    backgroundColor: "#FFFFFF",
+    borderColor: border,
+    borderRadius: 28,
+    borderWidth: 1,
+    padding: 16,
+    shadowColor: "#17111F",
+    shadowOpacity: 0.045,
+    shadowRadius: 16,
   },
-  transportEyebrow: {
-    color: "#ff4fa3",
+  traceCardCompact: {
+    padding: 14,
+  },
+  traceCardMedia: {
+    borderColor: "#D8C7FF",
+    shadowColor: purple,
+    shadowOpacity: 0.08,
+  },
+  traceCardViewed: {
+    borderColor: border,
+    shadowColor: "#17111F",
+    shadowOpacity: 0.035,
+  },
+  traceContext: {
+    color: muted,
+    flex: 1,
     fontSize: 12,
     fontWeight: "900",
-    letterSpacing: 2,
     textTransform: "uppercase",
   },
-  transportIcon: {
-    alignItems: "center",
-    backgroundColor: "#ff4fa3",
-    borderRadius: 999,
-    height: 42,
-    justifyContent: "center",
-    width: 42,
-  },
-  transportIconDisabled: {
-    backgroundColor: "#d7d7d7",
-  },
-  transportIconText: {
-    color: "#ffffff",
-    fontSize: 18,
-    fontWeight: "900",
-  },
-  transportIconTextDisabled: {
-    color: "rgba(0,0,0,0.38)",
-  },
-  transportText: {
-    color: "rgba(0,0,0,0.55)",
-    fontSize: 14,
-    fontWeight: "700",
-    lineHeight: 21,
-    marginTop: 8,
-  },
-  transportTitle: {
-    color: "#101214",
-    fontSize: 24,
-    fontWeight: "900",
-    marginTop: 8,
-  },
-  transportWarning: {
-    color: "#17b978",
-    fontSize: 12,
-    fontWeight: "900",
-    marginTop: 14,
-  },
-  topRow: {
+  traceFooter: {
     alignItems: "center",
     flexDirection: "row",
-    justifyContent: "space-between",
-    minHeight: 44,
-    position: "relative",
+    gap: 12,
+    marginTop: 16,
   },
-  walkerArm: {
-    backgroundColor: "#ffffff",
-    borderRadius: 5,
-    height: 4,
-    left: 11,
-    position: "absolute",
-    top: 17,
-    transform: [{ rotate: "-28deg" }],
-    width: 16,
+  traceImage: {
+    borderRadius: 18,
+    height: 160,
+    marginTop: 14,
+    width: "100%",
   },
-  walkerBody: {
-    backgroundColor: "#ffffff",
-    borderRadius: 4,
-    height: 13,
-    position: "absolute",
-    top: 12,
-    transform: [{ rotate: "12deg" }],
-    width: 5,
+  traceList: {
+    gap: 12,
   },
-  walkerHead: {
-    backgroundColor: "#ffffff",
-    borderRadius: 5,
-    height: 8,
-    position: "absolute",
-    top: 7,
-    width: 8,
+  traceMeta: {
+    color: muted,
+    fontSize: 12,
+    fontWeight: "800",
+    marginTop: 2,
   },
-  walkerLegLeft: {
-    backgroundColor: "#ffffff",
-    borderRadius: 4,
-    height: 5,
-    left: 11,
-    position: "absolute",
-    top: 25,
-    transform: [{ rotate: "-28deg" }],
-    width: 13,
+  traceText: {
+    color: "#2E2A33",
+    fontSize: 19,
+    fontWeight: "700",
+    lineHeight: 27,
+    marginTop: 15,
   },
-  walkerLegRight: {
-    backgroundColor: "#ffffff",
-    borderRadius: 4,
-    height: 5,
-    position: "absolute",
-    right: 10,
-    top: 25,
-    transform: [{ rotate: "34deg" }],
-    width: 13,
+  traceTop: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 10,
+  },
+  visibilityPill: {
+    backgroundColor: "#FBFAFD",
+    borderColor: border,
+    borderRadius: 999,
+    borderWidth: 1,
+    flex: 1,
+    paddingVertical: 11,
+  },
+  visibilityPillActive: {
+    backgroundColor: black,
+    borderColor: black,
+  },
+  visibilityRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 12,
+  },
+  visibilityText: {
+    color: muted,
+    fontSize: 12,
+    fontWeight: "900",
+    textAlign: "center",
+  },
+  visibilityTextActive: {
+    color: "#FFFFFF",
   },
 });
