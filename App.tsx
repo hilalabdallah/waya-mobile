@@ -15,7 +15,7 @@ import {
   View,
 } from "react-native";
 
-type ViewName = "home" | "circle" | "journal";
+type ViewName = "home" | "circle" | "you";
 type Visibility = "private" | "circle" | "local";
 type MediaKind = "photo" | "video";
 
@@ -40,12 +40,15 @@ type SavedState = {
   lastActiveAt: string;
 };
 
-const storageKey = "waya-social-journal-v1";
-const purple = "#8B5CF6";
-const softPurple = "#F4EFFF";
-const border = "#E8E5ED";
-const black = "#090A0C";
-const muted = "#8B8792";
+const storageKey = "waya-social-journal-v2";
+const ink = "#08090A";
+const paper = "#FFFFFF";
+const canvas = "#F7F7F5";
+const smoke = "#EFEEEA";
+const line = "#E1DFDA";
+const deepLine = "#141414";
+const muted = "#7D7972";
+const faint = "#F3F2EF";
 
 const starterTraces: Trace[] = [
   {
@@ -93,6 +96,15 @@ const starterTraces: Trace[] = [
   },
 ];
 
+const friends = ["As", "Nolan", "Zer", "Maya", "Yanis", "Lina"];
+const mapDots = [
+  { left: 58, top: 52 },
+  { left: 214, top: 34 },
+  { left: 152, top: 92 },
+  { left: 252, top: 116 },
+  { left: 94, top: 124 },
+];
+
 function formatTraceTime(value: string) {
   const elapsed = Date.now() - new Date(value).getTime();
   const minutes = Math.max(1, Math.floor(elapsed / 60000));
@@ -115,7 +127,7 @@ function visibilityLabel(visibility: Visibility) {
   }
 
   if (visibility === "local") {
-    return "Public local";
+    return "Public";
   }
 
   return "Entourage";
@@ -124,22 +136,8 @@ function visibilityLabel(visibility: Visibility) {
 function computePresence(traces: Trace[], lastActiveAt: string) {
   const mine = traces.filter((trace) => trace.isMine);
   const daysInactive = Math.floor((Date.now() - new Date(lastActiveAt).getTime()) / 86400000);
-  const score = Math.max(8, Math.min(100, 42 + mine.length * 8 - daysInactive * 5));
 
-  if (score >= 82) {
-    return { score, label: "Ancre" };
-  }
-  if (score >= 64) {
-    return { score, label: "Marquant" };
-  }
-  if (score >= 42) {
-    return { score, label: "Present" };
-  }
-  if (score >= 24) {
-    return { score, label: "Discret" };
-  }
-
-  return { score, label: "Silencieux" };
+  return Math.max(8, Math.min(100, 42 + mine.length * 8 - daysInactive * 5));
 }
 
 export default function App() {
@@ -223,7 +221,7 @@ export default function App() {
     Alert.alert(
       trace.mediaKind === "video" ? "Video ouverte" : "Photo ouverte",
       trace.mediaUri
-        ? "Dans cette V1, le media est attache a la trace. L'ouverture complete arrive dans l'etape suivante."
+        ? "Le media est attache a cette trace. L'ouverture plein ecran arrive ensuite."
         : "Media fictif pour montrer le comportement visuel.",
     );
   }
@@ -232,15 +230,9 @@ export default function App() {
     <SafeAreaView style={styles.safe}>
       <StatusBar style="dark" />
       <View style={styles.app}>
-        <Header presence={presence} />
-
         {view === "home" && (
           <ScrollView contentContainerStyle={styles.screen}>
-            <SectionHeader
-              label="Accueil"
-              text="Ce que ton entourage a depose recemment."
-              title="Dernieres traces"
-            />
+            <ScreenTitle label="Accueil" title="Dernieres traces" />
             <View style={styles.traceList}>
               {sortedTraces.map((trace) => (
                 <TraceCard
@@ -257,13 +249,9 @@ export default function App() {
 
         {view === "circle" && (
           <ScrollView contentContainerStyle={styles.screen}>
-            <SectionHeader
-              label="Entourage"
-              text="Un cercle proche, pas une scene mondiale."
-              title="Les gens qui comptent"
-            />
+            <ScreenTitle label="Entourage" title="Les gens qui comptent" />
             <View style={styles.peopleGrid}>
-              {["As", "Nolan", "Zer", "Maya", "Yanis", "Lina"].map((name, index) => (
+              {friends.map((name, index) => (
                 <View key={name} style={styles.friendCard}>
                   <View style={styles.friendAvatar}>
                     <Text style={styles.friendInitial}>{name[0]}</Text>
@@ -274,36 +262,61 @@ export default function App() {
                       {index % 2 === 0 ? "A laisse une trace aujourd'hui" : "Silencieux depuis hier"}
                     </Text>
                   </View>
+                  <View style={styles.friendSignal} />
                 </View>
               ))}
             </View>
           </ScrollView>
         )}
 
-        {view === "journal" && (
+        {view === "you" && (
           <ScrollView contentContainerStyle={styles.screen}>
-            <SectionHeader
-              label="Journal"
-              text="Tes traces privees et partagees, rangees comme une memoire."
-              title="Ton carnet"
-            />
-            <View style={styles.journalHero}>
-              <Text style={styles.journalNumber}>{myTraces.length}</Text>
-              <Text style={styles.journalText}>
-                {myTraces.length > 1 ? "traces laissees" : "trace laissee"} par toi
-              </Text>
+            <ScreenTitle label="Toi" title="Carnet personnel" />
+            <View style={styles.youHero}>
+              <View style={styles.youIdentity}>
+                <View style={styles.youAvatar}>
+                  <Text style={styles.youAvatarText}>N</Text>
+                </View>
+                <View>
+                  <Text style={styles.youName}>Ness</Text>
+                  <Text style={styles.youMeta}>journal de bord</Text>
+                </View>
+              </View>
+              <View style={styles.presenceTrack}>
+                <View style={[styles.presenceFill, { width: `${presence}%` }]} />
+              </View>
             </View>
-            <View style={styles.traceList}>
-              {(myTraces.length ? myTraces : sortedTraces.slice(0, 2)).map((trace) => (
-                <TraceCard
-                  compact
-                  key={trace.id}
-                  onAnswer={() => answerTrace(trace)}
-                  onOpenMedia={() => openMedia(trace)}
-                  trace={trace}
-                  viewed={viewedMedia.includes(trace.id)}
-                />
-              ))}
+
+            <View style={styles.statsGrid}>
+              <StatCard label="Traces" value={String(myTraces.length)} />
+              <StatCard label="Pas" value={(4200 + myTraces.length * 380).toLocaleString("fr-FR")} />
+              <StatCard label="Lieux" value={String(new Set(myTraces.map((trace) => trace.place).filter(Boolean)).size)} />
+              <StatCard label="Jours" value={String(Math.max(1, Math.ceil(myTraces.length / 2)))} />
+            </View>
+
+            <MemoryMap traces={myTraces} />
+
+            <View style={styles.personalBlock}>
+              <Text style={styles.blockTitle}>Tes dernieres traces</Text>
+              {myTraces.length ? (
+                <View style={styles.traceList}>
+                  {myTraces.slice(0, 3).map((trace) => (
+                    <TraceCard
+                      compact
+                      key={trace.id}
+                      onAnswer={() => answerTrace(trace)}
+                      onOpenMedia={() => openMedia(trace)}
+                      trace={trace}
+                      viewed={viewedMedia.includes(trace.id)}
+                    />
+                  ))}
+                </View>
+              ) : (
+                <View style={styles.emptyCard}>
+                  <Text style={styles.emptyTitle}>Encore rien ici</Text>
+                  <Text style={styles.emptyText}>Ta premiere trace viendra remplir ton carnet personnel.</Text>
+                </View>
+              )}
             </View>
           </ScrollView>
         )}
@@ -319,7 +332,7 @@ export default function App() {
         <View style={styles.nav}>
           <Tab active={view === "circle"} label="Entourage" onPress={() => setView("circle")} />
           <Tab active={view === "home"} label="Accueil" onPress={() => setView("home")} />
-          <Tab active={view === "journal"} label="Journal" onPress={() => setView("journal")} />
+          <Tab active={view === "you"} label="Toi" onPress={() => setView("you")} />
         </View>
       </View>
 
@@ -328,44 +341,44 @@ export default function App() {
   );
 }
 
-function Header({ presence }: { presence: { score: number; label: string } }) {
-  return (
-    <View style={styles.header}>
-      <View style={styles.identityRow}>
-        <View style={styles.identity}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>N</Text>
-          </View>
-          <View>
-            <Text style={styles.name}>Ness</Text>
-            <Text style={styles.handle}>@ness</Text>
-          </View>
-        </View>
-        <Text style={styles.logo}>WAYA</Text>
-      </View>
-
-      <View style={styles.presenceCard}>
-        <View>
-          <Text style={styles.presenceLabel}>Presence</Text>
-          <Text style={styles.presenceTitle}>{presence.label}</Text>
-        </View>
-        <View style={styles.presenceMeter}>
-          <View style={styles.presenceTrack}>
-            <View style={[styles.presenceFill, { width: `${presence.score}%` }]} />
-          </View>
-          <Text style={styles.presenceHint}>Ta trace monte quand tu vis, ecris et reponds.</Text>
-        </View>
-      </View>
-    </View>
-  );
-}
-
-function SectionHeader({ label, text, title }: { label: string; text: string; title: string }) {
+function ScreenTitle({ label, title }: { label: string; title: string }) {
   return (
     <View style={styles.sectionHeader}>
       <Text style={styles.sectionLabel}>{label}</Text>
       <Text style={styles.sectionTitle}>{title}</Text>
-      <Text style={styles.sectionText}>{text}</Text>
+    </View>
+  );
+}
+
+function StatCard({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.statCard}>
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function MemoryMap({ traces }: { traces: Trace[] }) {
+  const visibleDots = traces.length ? traces.slice(0, 5) : [{ id: "empty" }];
+
+  return (
+    <View style={styles.mapCard}>
+      <View style={styles.mapHeader}>
+        <Text style={styles.blockTitle}>Carte des traces</Text>
+        <Text style={styles.mapCount}>{traces.filter((trace) => trace.place).length}</Text>
+      </View>
+      <View style={styles.miniMap}>
+        <View style={[styles.mapRoad, styles.mapRoadOne]} />
+        <View style={[styles.mapRoad, styles.mapRoadTwo]} />
+        <View style={[styles.mapRoad, styles.mapRoadThree]} />
+        {visibleDots.map((trace, index) => (
+          <View
+            key={trace.id}
+            style={[styles.mapDot, mapDots[index], traces.length === 0 && styles.mapDotMuted]}
+          />
+        ))}
+      </View>
     </View>
   );
 }
@@ -394,6 +407,7 @@ function TraceCard({
         compact && styles.traceCardCompact,
       ]}
     >
+      <View style={styles.innerStroke} />
       <View style={styles.traceTop}>
         <View style={styles.traceAuthorWrap}>
           <View style={[styles.traceAvatar, hasMedia && styles.traceAvatarMedia]}>
@@ -402,7 +416,7 @@ function TraceCard({
           <View>
             <Text style={styles.traceAuthor}>{trace.author}</Text>
             <Text style={styles.traceMeta}>
-              {trace.handle} · {formatTraceTime(trace.createdAt)} · {visibilityLabel(trace.visibility)}
+              {formatTraceTime(trace.createdAt)} · {visibilityLabel(trace.visibility)}
             </Text>
           </View>
         </View>
@@ -425,9 +439,11 @@ function TraceCard({
         <Text style={styles.traceContext}>
           {[trace.mood, trace.place].filter(Boolean).join(" · ") || "trace simple"}
         </Text>
-        <Pressable onPress={onAnswer} style={styles.replyButton}>
-          <Text style={styles.replyText}>{trace.replies ? `${trace.replies} reponses` : "Repondre"}</Text>
-        </Pressable>
+        {!trace.isMine && (
+          <Pressable onPress={onAnswer} style={styles.replyButton}>
+            <Text style={styles.replyText}>{trace.replies ? `${trace.replies} reponses` : "Repondre"}</Text>
+          </Pressable>
+        )}
       </View>
     </View>
   );
@@ -521,7 +537,7 @@ function TraceComposer({
             multiline
             onChangeText={setText}
             placeholder="Pose une phrase, meme courte..."
-            placeholderTextColor="#AAA5B1"
+            placeholderTextColor="#A4A09A"
             style={styles.input}
             value={text}
           />
@@ -530,14 +546,14 @@ function TraceComposer({
             <TextInput
               onChangeText={setMood}
               placeholder="humeur"
-              placeholderTextColor="#AAA5B1"
+              placeholderTextColor="#A4A09A"
               style={styles.miniInput}
               value={mood}
             />
             <TextInput
               onChangeText={setPlace}
               placeholder="lieu approx."
-              placeholderTextColor="#AAA5B1"
+              placeholderTextColor="#A4A09A"
               style={styles.miniInput}
               value={place}
             />
@@ -546,7 +562,7 @@ function TraceComposer({
           <View style={styles.visibilityRow}>
             <VisibilityPill active={visibility === "private"} label="Prive" onPress={() => setVisibility("private")} />
             <VisibilityPill active={visibility === "circle"} label="Entourage" onPress={() => setVisibility("circle")} />
-            <VisibilityPill active={visibility === "local"} label="Public local" onPress={() => setVisibility("local")} />
+            <VisibilityPill active={visibility === "local"} label="Public" onPress={() => setVisibility("local")} />
           </View>
 
           <Pressable onPress={addMedia} style={[styles.mediaPicker, mediaKind && styles.mediaPickerActive]}>
@@ -581,26 +597,18 @@ function Tab({ active, label, onPress }: { active: boolean; label: string; onPre
 
 const styles = StyleSheet.create({
   app: {
-    backgroundColor: "#FAF9FC",
+    backgroundColor: canvas,
     flex: 1,
   },
-  avatar: {
-    alignItems: "center",
-    backgroundColor: black,
-    borderRadius: 27,
-    height: 54,
-    justifyContent: "center",
-    width: 54,
-  },
-  avatarText: {
-    color: "#FFFFFF",
-    fontSize: 19,
+  blockTitle: {
+    color: ink,
+    fontSize: 17,
     fontWeight: "900",
   },
   closeButton: {
     alignItems: "center",
-    backgroundColor: "#F7F5FA",
-    borderColor: border,
+    backgroundColor: faint,
+    borderColor: line,
     borderRadius: 18,
     borderWidth: 1,
     height: 36,
@@ -608,14 +616,14 @@ const styles = StyleSheet.create({
     width: 36,
   },
   closeText: {
-    color: black,
+    color: ink,
     fontSize: 20,
     fontWeight: "900",
   },
   composeButton: {
     alignItems: "center",
-    backgroundColor: purple,
-    borderColor: "rgba(255,255,255,0.7)",
+    backgroundColor: ink,
+    borderColor: "rgba(255,255,255,0.76)",
     borderRadius: 28,
     borderWidth: 4,
     bottom: 86,
@@ -625,44 +633,46 @@ const styles = StyleSheet.create({
     left: "50%",
     marginLeft: -36,
     position: "absolute",
-    shadowColor: purple,
-    shadowOpacity: 0.3,
+    shadowColor: ink,
+    shadowOpacity: 0.22,
     shadowRadius: 18,
     width: 72,
   },
   composePlus: {
-    color: "#FFFFFF",
+    color: paper,
     fontSize: 28,
     fontWeight: "800",
     lineHeight: 30,
   },
   composeText: {
-    color: "#FFFFFF",
+    color: paper,
     fontSize: 11,
     fontWeight: "900",
     marginTop: -2,
   },
   composerBackdrop: {
-    backgroundColor: "rgba(9,10,12,0.24)",
+    backgroundColor: "rgba(8,9,10,0.26)",
     flex: 1,
     justifyContent: "flex-end",
   },
   composerCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: paper,
+    borderColor: "rgba(255,255,255,0.8)",
     borderTopLeftRadius: 34,
     borderTopRightRadius: 34,
+    borderWidth: 1,
     padding: 20,
     paddingBottom: 34,
   },
   composerLabel: {
-    color: purple,
+    color: muted,
     fontSize: 12,
     fontWeight: "900",
     letterSpacing: 2,
     textTransform: "uppercase",
   },
   composerTitle: {
-    color: black,
+    color: ink,
     fontSize: 24,
     fontWeight: "900",
     lineHeight: 28,
@@ -676,19 +686,38 @@ const styles = StyleSheet.create({
   },
   depositButton: {
     alignItems: "center",
-    backgroundColor: purple,
+    backgroundColor: ink,
     borderRadius: 24,
     marginTop: 16,
     paddingVertical: 17,
   },
   depositText: {
-    color: "#FFFFFF",
+    color: paper,
     fontSize: 16,
+    fontWeight: "900",
+  },
+  emptyCard: {
+    backgroundColor: paper,
+    borderColor: line,
+    borderRadius: 28,
+    borderWidth: 1,
+    padding: 18,
+  },
+  emptyText: {
+    color: muted,
+    fontSize: 14,
+    fontWeight: "700",
+    lineHeight: 21,
+    marginTop: 6,
+  },
+  emptyTitle: {
+    color: ink,
+    fontSize: 18,
     fontWeight: "900",
   },
   friendAvatar: {
     alignItems: "center",
-    backgroundColor: black,
+    backgroundColor: ink,
     borderRadius: 23,
     height: 46,
     justifyContent: "center",
@@ -696,22 +725,23 @@ const styles = StyleSheet.create({
   },
   friendCard: {
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    borderColor: border,
+    backgroundColor: paper,
+    borderColor: line,
     borderRadius: 26,
     borderWidth: 1,
     flexDirection: "row",
     gap: 12,
     padding: 14,
-    shadowColor: "#17111F",
-    shadowOpacity: 0.04,
-    shadowRadius: 14,
+    shadowColor: ink,
+    shadowOffset: { height: 8, width: 0 },
+    shadowOpacity: 0.045,
+    shadowRadius: 18,
   },
   friendInfo: {
     flex: 1,
   },
   friendInitial: {
-    color: "#FFFFFF",
+    color: paper,
     fontSize: 16,
     fontWeight: "900",
   },
@@ -722,42 +752,36 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
   friendName: {
-    color: black,
+    color: ink,
     fontSize: 18,
     fontWeight: "900",
   },
-  handle: {
-    color: muted,
-    fontSize: 13,
-    fontWeight: "800",
-    marginTop: 2,
-  },
-  header: {
-    backgroundColor: "#FAF9FC",
-    paddingHorizontal: 18,
-    paddingTop: 8,
-  },
-  identity: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 12,
-  },
-  identityRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "space-between",
+  friendSignal: {
+    backgroundColor: smoke,
+    borderRadius: 999,
+    height: 8,
+    width: 8,
   },
   inlineInputs: {
     flexDirection: "row",
     gap: 10,
     marginTop: 12,
   },
+  innerStroke: {
+    backgroundColor: "rgba(255,255,255,0.92)",
+    borderRadius: 999,
+    height: 1,
+    left: 18,
+    position: "absolute",
+    right: 18,
+    top: 9,
+  },
   input: {
-    backgroundColor: "#FBFAFD",
-    borderColor: border,
+    backgroundColor: "#FBFBFA",
+    borderColor: line,
     borderRadius: 24,
     borderWidth: 1,
-    color: black,
+    color: ink,
     fontSize: 19,
     fontWeight: "700",
     lineHeight: 26,
@@ -766,52 +790,89 @@ const styles = StyleSheet.create({
     padding: 18,
     textAlignVertical: "top",
   },
-  journalHero: {
-    backgroundColor: black,
-    borderRadius: 32,
-    padding: 22,
+  mapCard: {
+    backgroundColor: paper,
+    borderColor: line,
+    borderRadius: 30,
+    borderWidth: 1,
+    padding: 16,
+    shadowColor: ink,
+    shadowOffset: { height: 10, width: 0 },
+    shadowOpacity: 0.045,
+    shadowRadius: 22,
   },
-  journalNumber: {
-    color: "#FFFFFF",
-    fontSize: 62,
+  mapCount: {
+    color: muted,
+    fontSize: 14,
     fontWeight: "900",
-    lineHeight: 66,
   },
-  journalText: {
-    color: "rgba(255,255,255,0.62)",
-    fontSize: 16,
-    fontWeight: "800",
-    marginTop: 4,
+  mapDot: {
+    backgroundColor: ink,
+    borderColor: paper,
+    borderRadius: 999,
+    borderWidth: 4,
+    height: 22,
+    position: "absolute",
+    shadowColor: ink,
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    width: 22,
   },
-  logo: {
-    color: purple,
-    fontSize: 30,
-    fontWeight: "900",
-    letterSpacing: 1,
+  mapDotMuted: {
+    backgroundColor: "#C7C4BE",
+  },
+  mapHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  mapRoad: {
+    backgroundColor: "rgba(255,255,255,0.88)",
+    borderColor: "#DDDAD3",
+    borderRadius: 999,
+    borderWidth: 1,
+    height: 18,
+    position: "absolute",
+    width: 210,
+  },
+  mapRoadOne: {
+    left: -18,
+    top: 48,
+    transform: [{ rotate: "-19deg" }],
+  },
+  mapRoadThree: {
+    left: 82,
+    top: 118,
+    transform: [{ rotate: "-32deg" }],
+  },
+  mapRoadTwo: {
+    right: -30,
+    top: 84,
+    transform: [{ rotate: "31deg" }],
   },
   mediaBadge: {
-    backgroundColor: softPurple,
-    borderColor: "#D8C7FF",
+    backgroundColor: ink,
+    borderColor: deepLine,
     borderRadius: 999,
     borderWidth: 1,
     paddingHorizontal: 10,
     paddingVertical: 7,
   },
   mediaBadgeText: {
-    color: purple,
+    color: paper,
     fontSize: 11,
     fontWeight: "900",
   },
   mediaBadgeTextViewed: {
-    color: "#AAA5B1",
+    color: muted,
   },
   mediaBadgeViewed: {
-    backgroundColor: "#F5F3F7",
-    borderColor: border,
+    backgroundColor: faint,
+    borderColor: line,
   },
   mediaPicker: {
-    backgroundColor: "#FBFAFD",
-    borderColor: border,
+    backgroundColor: "#FBFBFA",
+    borderColor: line,
     borderRadius: 22,
     borderStyle: "dashed",
     borderWidth: 1,
@@ -819,8 +880,8 @@ const styles = StyleSheet.create({
     padding: 15,
   },
   mediaPickerActive: {
-    backgroundColor: softPurple,
-    borderColor: "#D8C7FF",
+    backgroundColor: smoke,
+    borderColor: deepLine,
   },
   mediaPickerText: {
     color: muted,
@@ -829,30 +890,34 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
   mediaPickerTitle: {
-    color: black,
+    color: ink,
     fontSize: 15,
     fontWeight: "900",
   },
   miniInput: {
-    backgroundColor: "#FBFAFD",
-    borderColor: border,
+    backgroundColor: "#FBFBFA",
+    borderColor: line,
     borderRadius: 18,
     borderWidth: 1,
-    color: black,
+    color: ink,
     flex: 1,
     fontSize: 14,
     fontWeight: "800",
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
-  name: {
-    color: black,
-    fontSize: 19,
-    fontWeight: "900",
+  miniMap: {
+    backgroundColor: faint,
+    borderColor: "rgba(20,20,20,0.08)",
+    borderRadius: 24,
+    borderWidth: 1,
+    height: 170,
+    marginTop: 14,
+    overflow: "hidden",
   },
   nav: {
     backgroundColor: "rgba(255,255,255,0.94)",
-    borderColor: "rgba(232,229,237,0.85)",
+    borderColor: "rgba(225,223,218,0.9)",
     borderRadius: 34,
     borderWidth: 1,
     bottom: 18,
@@ -863,74 +928,45 @@ const styles = StyleSheet.create({
     padding: 8,
     position: "absolute",
     right: 18,
-    shadowColor: "#17111F",
+    shadowColor: ink,
+    shadowOffset: { height: 12, width: 0 },
     shadowOpacity: 0.1,
-    shadowRadius: 20,
+    shadowRadius: 24,
   },
   peopleGrid: {
     gap: 12,
   },
-  presenceCard: {
-    alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    borderColor: border,
-    borderRadius: 30,
-    borderWidth: 1,
-    flexDirection: "row",
-    gap: 18,
-    marginTop: 22,
-    padding: 18,
-    shadowColor: "#17111F",
-    shadowOpacity: 0.04,
-    shadowRadius: 18,
+  personalBlock: {
+    gap: 12,
   },
   presenceFill: {
-    backgroundColor: purple,
+    backgroundColor: ink,
     borderRadius: 999,
     height: "100%",
   },
-  presenceHint: {
-    color: muted,
-    fontSize: 11,
-    fontWeight: "800",
-    marginTop: 7,
-  },
-  presenceLabel: {
-    color: muted,
-    fontSize: 12,
-    fontWeight: "900",
-  },
-  presenceMeter: {
-    flex: 1,
-  },
-  presenceTitle: {
-    color: black,
-    fontSize: 22,
-    fontWeight: "900",
-    marginTop: 4,
-  },
   presenceTrack: {
-    backgroundColor: "#EFEDF2",
+    backgroundColor: "#DCDAD5",
     borderRadius: 999,
-    height: 9,
+    height: 8,
+    marginTop: 18,
     overflow: "hidden",
   },
   pressed: {
     transform: [{ scale: 0.97 }],
   },
   replyButton: {
-    backgroundColor: "#F7F5FA",
+    backgroundColor: faint,
     borderRadius: 999,
     paddingHorizontal: 11,
     paddingVertical: 8,
   },
   replyText: {
-    color: black,
+    color: ink,
     fontSize: 12,
     fontWeight: "900",
   },
   safe: {
-    backgroundColor: "#FAF9FC",
+    backgroundColor: canvas,
     flex: 1,
   },
   screen: {
@@ -939,29 +975,51 @@ const styles = StyleSheet.create({
     paddingBottom: 178,
   },
   sectionHeader: {
-    paddingTop: 10,
+    paddingTop: 18,
   },
   sectionLabel: {
-    color: purple,
+    color: muted,
     fontSize: 12,
     fontWeight: "900",
     letterSpacing: 2,
     textTransform: "uppercase",
   },
-  sectionText: {
-    color: muted,
-    fontSize: 15,
-    fontWeight: "700",
-    lineHeight: 22,
-    marginTop: 6,
-  },
   sectionTitle: {
-    color: black,
-    fontSize: 34,
+    color: ink,
+    fontSize: 35,
     fontWeight: "900",
     letterSpacing: 0,
-    lineHeight: 38,
+    lineHeight: 39,
     marginTop: 8,
+  },
+  statCard: {
+    backgroundColor: paper,
+    borderColor: line,
+    borderRadius: 26,
+    borderWidth: 1,
+    flex: 1,
+    minWidth: "46%",
+    padding: 16,
+    shadowColor: ink,
+    shadowOffset: { height: 8, width: 0 },
+    shadowOpacity: 0.035,
+    shadowRadius: 18,
+  },
+  statLabel: {
+    color: muted,
+    fontSize: 13,
+    fontWeight: "800",
+    marginTop: 5,
+  },
+  statsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  statValue: {
+    color: ink,
+    fontSize: 27,
+    fontWeight: "900",
   },
   tab: {
     alignItems: "center",
@@ -970,18 +1028,18 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
   },
   tabActive: {
-    backgroundColor: black,
+    backgroundColor: ink,
   },
   tabText: {
-    color: "#9A96A1",
+    color: "#94908A",
     fontSize: 14,
     fontWeight: "900",
   },
   tabTextActive: {
-    color: "#FFFFFF",
+    color: paper,
   },
   traceAuthor: {
-    color: black,
+    color: ink,
     fontSize: 16,
     fontWeight: "900",
   },
@@ -993,41 +1051,44 @@ const styles = StyleSheet.create({
   },
   traceAvatar: {
     alignItems: "center",
-    backgroundColor: black,
+    backgroundColor: ink,
     borderRadius: 19,
     height: 38,
     justifyContent: "center",
     width: 38,
   },
   traceAvatarMedia: {
-    backgroundColor: purple,
+    backgroundColor: deepLine,
+    borderColor: "#C7C4BE",
+    borderWidth: 2,
   },
   traceAvatarText: {
-    color: "#FFFFFF",
+    color: paper,
     fontSize: 14,
     fontWeight: "900",
   },
   traceCard: {
-    backgroundColor: "#FFFFFF",
-    borderColor: border,
+    backgroundColor: paper,
+    borderColor: line,
     borderRadius: 28,
     borderWidth: 1,
+    overflow: "hidden",
     padding: 16,
-    shadowColor: "#17111F",
+    shadowColor: ink,
+    shadowOffset: { height: 10, width: 0 },
     shadowOpacity: 0.045,
-    shadowRadius: 16,
+    shadowRadius: 18,
   },
   traceCardCompact: {
     padding: 14,
   },
   traceCardMedia: {
-    borderColor: "#D8C7FF",
-    shadowColor: purple,
+    borderColor: deepLine,
+    shadowColor: ink,
     shadowOpacity: 0.08,
   },
   traceCardViewed: {
-    borderColor: border,
-    shadowColor: "#17111F",
+    borderColor: line,
     shadowOpacity: 0.035,
   },
   traceContext: {
@@ -1059,7 +1120,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   traceText: {
-    color: "#2E2A33",
+    color: "#2B2926",
     fontSize: 19,
     fontWeight: "700",
     lineHeight: 27,
@@ -1071,16 +1132,16 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   visibilityPill: {
-    backgroundColor: "#FBFAFD",
-    borderColor: border,
+    backgroundColor: "#FBFBFA",
+    borderColor: line,
     borderRadius: 999,
     borderWidth: 1,
     flex: 1,
     paddingVertical: 11,
   },
   visibilityPillActive: {
-    backgroundColor: black,
-    borderColor: black,
+    backgroundColor: ink,
+    borderColor: ink,
   },
   visibilityRow: {
     flexDirection: "row",
@@ -1094,6 +1155,46 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   visibilityTextActive: {
-    color: "#FFFFFF",
+    color: paper,
+  },
+  youAvatar: {
+    alignItems: "center",
+    backgroundColor: ink,
+    borderRadius: 29,
+    height: 58,
+    justifyContent: "center",
+    width: 58,
+  },
+  youAvatarText: {
+    color: paper,
+    fontSize: 20,
+    fontWeight: "900",
+  },
+  youHero: {
+    backgroundColor: paper,
+    borderColor: line,
+    borderRadius: 32,
+    borderWidth: 1,
+    padding: 18,
+    shadowColor: ink,
+    shadowOffset: { height: 12, width: 0 },
+    shadowOpacity: 0.05,
+    shadowRadius: 24,
+  },
+  youIdentity: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 12,
+  },
+  youMeta: {
+    color: muted,
+    fontSize: 14,
+    fontWeight: "800",
+    marginTop: 2,
+  },
+  youName: {
+    color: ink,
+    fontSize: 23,
+    fontWeight: "900",
   },
 });
