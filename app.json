@@ -6,32 +6,25 @@
     "orientation": "portrait",
     "scheme": "waya",
     "userInterfaceStyle": "light",
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": false,
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "WAYA utilise ta position pour valider les missions proches de toi.",
-        "NSCameraUsageDescription": "WAYA utilise l'appareil photo pour ajouter une preuve de mission.",
-        "NSPhotoLibraryUsageDescription": "WAYA peut choisir une photo comme preuve de mission."
-      },
-      "bundleIdentifier": "com.nasrinein.wayamobile"
+        "NSCameraUsageDescription": "WAYA utilise l'appareil photo pour attacher un moment a ta trace.",
+        "NSPhotoLibraryUsageDescription": "WAYA peut choisir une photo ou une video pour accompagner ta trace."
+      }
     },
     "android": {
       "permissions": [
-        "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION",
         "CAMERA",
-        "READ_MEDIA_IMAGES"
+        "READ_MEDIA_IMAGES",
+        "READ_MEDIA_VIDEO"
       ],
       "adaptiveIcon": {
         "backgroundColor": "#ffffff"
-      },
-      "package": "com.nasrine_in.wayamobile"
+      }
     },
     "plugins": [
-      "expo-location",
       "expo-image-picker"
     ]
   }
