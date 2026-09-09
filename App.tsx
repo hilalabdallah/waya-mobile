@@ -701,8 +701,7 @@ function TraceComposer({
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <View style={styles.composerTop}>
             <View>
-              <Text style={styles.composerLabel}>Laisser une trace</Text>
-              <Text style={styles.composerTitle}>Qu'est-ce que tu gardes d'aujourd'hui ?</Text>
+              <Text style={styles.composerTitle}>Trace</Text>
             </View>
             <Pressable onPress={closeAndReset} style={styles.closeButton}>
               <Text style={styles.closeText}>x</Text>
@@ -712,35 +711,43 @@ function TraceComposer({
           <TextInput
             multiline
             onChangeText={setText}
-            placeholder="Pose une phrase, meme courte..."
+            placeholder="Qu'est-ce que tu gardes ?"
             placeholderTextColor="#A4A09A"
             style={styles.input}
             value={text}
           />
 
-          <View style={styles.inlineInputs}>
-            <TextInput
-              onChangeText={setPlace}
-              placeholder="lieu approx."
-              placeholderTextColor="#A4A09A"
-              style={styles.miniInput}
-              value={place}
-            />
+          <View style={styles.composerTools}>
+            <View style={styles.visibilityRow}>
+              <VisibilityPill active={visibility === "private"} label="Prive" onPress={() => setVisibility("private")} />
+              <VisibilityPill
+                active={visibility === "circle"}
+                label="Entourage"
+                onPress={() => setVisibility("circle")}
+              />
+              <VisibilityPill active={visibility === "local"} label="Public" onPress={() => setVisibility("local")} />
+            </View>
+
+            <View style={styles.mediaIcons}>
+              <Pressable onPress={addMedia} style={[styles.mediaIcon, mediaKind === "photo" && styles.mediaIconActive]}>
+                <Text style={[styles.mediaIconText, mediaKind === "photo" && styles.mediaIconTextActive]}>P</Text>
+              </Pressable>
+              <Pressable onPress={addMedia} style={[styles.mediaIcon, mediaKind === "video" && styles.mediaIconActive]}>
+                <Text style={[styles.mediaIconText, mediaKind === "video" && styles.mediaIconTextActive]}>V</Text>
+              </Pressable>
+            </View>
           </View>
 
-          <View style={styles.visibilityRow}>
-            <VisibilityPill active={visibility === "private"} label="Prive" onPress={() => setVisibility("private")} />
-            <VisibilityPill active={visibility === "circle"} label="Entourage" onPress={() => setVisibility("circle")} />
-            <VisibilityPill active={visibility === "local"} label="Public" onPress={() => setVisibility("local")} />
-          </View>
-
-          <Pressable onPress={addMedia} style={[styles.mediaPicker, mediaKind && styles.mediaPickerActive]}>
-            <Text style={styles.mediaPickerTitle}>{mediaKind ? `${mediaKind} attachee` : "Ajouter photo/video"}</Text>
-            <Text style={styles.mediaPickerText}>Visible une seule fois par les autres.</Text>
-          </Pressable>
+          <TextInput
+            onChangeText={setPlace}
+            placeholder="lieu"
+            placeholderTextColor="#A4A09A"
+            style={styles.placeInput}
+            value={place}
+          />
 
           <Pressable onPress={submit} style={({ pressed }) => [styles.depositButton, pressed && styles.pressed]}>
-            <Text style={styles.depositText}>Deposer la trace</Text>
+            <Text style={styles.depositText}>Valider</Text>
           </Pressable>
           </ScrollView>
         </View>
@@ -752,6 +759,7 @@ function TraceComposer({
 function VisibilityPill({ active, label, onPress }: { active: boolean; label: string; onPress: () => void }) {
   return (
     <Pressable onPress={onPress} style={[styles.visibilityPill, active && styles.visibilityPillActive]}>
+      <View style={[styles.visibilityCheck, active && styles.visibilityCheckActive]} />
       <Text style={[styles.visibilityText, active && styles.visibilityTextActive]}>{label}</Text>
     </Pressable>
   );
@@ -917,23 +925,22 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 34,
     borderTopRightRadius: 34,
     borderWidth: 1,
-    padding: 20,
-    paddingBottom: 34,
-  },
-  composerLabel: {
-    color: muted,
-    fontSize: 12,
-    fontWeight: "900",
-    letterSpacing: 2,
-    textTransform: "uppercase",
+    maxHeight: "78%",
+    padding: 18,
+    paddingBottom: 18,
   },
   composerTitle: {
     color: ink,
-    fontSize: 22,
-    fontWeight: "900",
-    lineHeight: 28,
-    marginTop: 8,
-    maxWidth: 270,
+    fontSize: 21,
+    fontWeight: "800",
+    lineHeight: 26,
+  },
+  composerTools: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 10,
+    justifyContent: "space-between",
+    marginTop: 12,
   },
   composerTop: {
     alignItems: "flex-start",
@@ -943,14 +950,14 @@ const styles = StyleSheet.create({
   depositButton: {
     alignItems: "center",
     backgroundColor: violet,
-    borderRadius: 24,
-    marginTop: 16,
-    paddingVertical: 17,
+    borderRadius: 20,
+    marginTop: 12,
+    paddingVertical: 14,
   },
   depositText: {
     color: paper,
-    fontSize: 16,
-    fontWeight: "900",
+    fontSize: 15,
+    fontWeight: "800",
   },
   emptyCard: {
     backgroundColor: paper,
@@ -1044,11 +1051,6 @@ const styles = StyleSheet.create({
     height: 8,
     width: 8,
   },
-  inlineInputs: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 12,
-  },
   innerStroke: {
     backgroundColor: "rgba(255,255,255,0.92)",
     borderRadius: 999,
@@ -1061,15 +1063,15 @@ const styles = StyleSheet.create({
   input: {
     backgroundColor: "#FBFBFA",
     borderColor: line,
-    borderRadius: 24,
+    borderRadius: 22,
     borderWidth: 1,
     color: ink,
-    fontSize: 19,
+    fontSize: 17,
     fontWeight: "700",
-    lineHeight: 26,
-    marginTop: 18,
-    minHeight: 136,
-    padding: 18,
+    lineHeight: 24,
+    marginTop: 14,
+    minHeight: 118,
+    padding: 16,
     textAlignVertical: "top",
   },
   mapCard: {
@@ -1152,41 +1154,31 @@ const styles = StyleSheet.create({
     backgroundColor: faint,
     borderColor: line,
   },
-  mediaPicker: {
-    backgroundColor: "#FBFBFA",
+  mediaIcon: {
+    alignItems: "center",
+    backgroundColor: paper,
     borderColor: line,
-    borderRadius: 22,
-    borderStyle: "dashed",
+    borderRadius: 16,
     borderWidth: 1,
-    marginTop: 12,
-    padding: 15,
+    height: 42,
+    justifyContent: "center",
+    width: 42,
   },
-  mediaPickerActive: {
+  mediaIconActive: {
     backgroundColor: softViolet,
     borderColor: violet,
   },
-  mediaPickerText: {
-    color: muted,
-    fontSize: 12,
-    fontWeight: "800",
-    marginTop: 3,
+  mediaIcons: {
+    flexDirection: "row",
+    gap: 8,
   },
-  mediaPickerTitle: {
-    color: ink,
-    fontSize: 15,
+  mediaIconText: {
+    color: muted,
+    fontSize: 14,
     fontWeight: "900",
   },
-  miniInput: {
-    backgroundColor: "#FBFBFA",
-    borderColor: line,
-    borderRadius: 18,
-    borderWidth: 1,
-    color: ink,
-    flex: 1,
-    fontSize: 14,
-    fontWeight: "800",
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+  mediaIconTextActive: {
+    color: violet,
   },
   miniMap: {
     backgroundColor: faint,
@@ -1252,6 +1244,18 @@ const styles = StyleSheet.create({
   },
   personalBlock: {
     gap: 12,
+  },
+  placeInput: {
+    backgroundColor: "#FBFBFA",
+    borderColor: line,
+    borderRadius: 18,
+    borderWidth: 1,
+    color: ink,
+    fontSize: 14,
+    fontWeight: "700",
+    marginTop: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
   },
   presenceFill: {
     backgroundColor: violet,
@@ -1489,30 +1493,41 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   visibilityPill: {
-    backgroundColor: "#FBFBFA",
+    alignItems: "center",
+    backgroundColor: "transparent",
+    borderRadius: 999,
+    flexDirection: "row",
+    gap: 6,
+    paddingHorizontal: 2,
+    paddingVertical: 7,
+  },
+  visibilityPillActive: {
+    backgroundColor: "transparent",
+  },
+  visibilityCheck: {
+    backgroundColor: paper,
     borderColor: line,
     borderRadius: 999,
     borderWidth: 1,
-    flex: 1,
-    paddingVertical: 11,
+    height: 16,
+    width: 16,
   },
-  visibilityPillActive: {
+  visibilityCheckActive: {
     backgroundColor: violet,
     borderColor: violet,
   },
   visibilityRow: {
     flexDirection: "row",
-    gap: 8,
-    marginTop: 12,
+    gap: 12,
   },
   visibilityText: {
     color: muted,
     fontSize: 12,
-    fontWeight: "900",
+    fontWeight: "800",
     textAlign: "center",
   },
   visibilityTextActive: {
-    color: paper,
+    color: ink,
   },
   youAvatar: {
     alignItems: "center",
