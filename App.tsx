@@ -5,7 +5,9 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Image,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -18,6 +20,14 @@ import {
 type ViewName = "home" | "circle" | "you";
 type Visibility = "private" | "circle" | "local";
 type MediaKind = "photo" | "video";
+
+type TraceComment = {
+  id: string;
+  author: string;
+  text: string;
+  emoji?: string;
+  createdAt: string;
+};
 
 type Trace = {
   id: string;
@@ -32,6 +42,7 @@ type Trace = {
   mediaUri?: string;
   isMine?: boolean;
   replies: number;
+  comments?: TraceComment[];
 };
 
 type SavedState = {
@@ -49,6 +60,8 @@ const line = "#E1DFDA";
 const deepLine = "#141414";
 const muted = "#7D7972";
 const faint = "#F3F2EF";
+const yellow = "#F3C84B";
+const softYellow = "#FFF7D8";
 
 const starterTraces: Trace[] = [
   {
@@ -62,6 +75,15 @@ const starterTraces: Trace[] = [
     place: "Montceau",
     mediaKind: "photo",
     replies: 3,
+    comments: [
+      {
+        id: "comment-1",
+        author: "Ness",
+        text: "Je vois exactement le genre de journee.",
+        emoji: "!",
+        createdAt: new Date(Date.now() - 1000 * 60 * 18).toISOString(),
+      },
+    ],
   },
   {
     id: "seed-2",
@@ -72,6 +94,7 @@ const starterTraces: Trace[] = [
     visibility: "circle",
     mood: "fatigue",
     replies: 1,
+    comments: [],
   },
   {
     id: "seed-3",
@@ -82,6 +105,7 @@ const starterTraces: Trace[] = [
     visibility: "local",
     place: "Le Creusot",
     replies: 0,
+    comments: [],
   },
   {
     id: "seed-4",
@@ -93,6 +117,15 @@ const starterTraces: Trace[] = [
     mood: "pose",
     mediaKind: "video",
     replies: 6,
+    comments: [
+      {
+        id: "comment-2",
+        author: "As",
+        text: "Garde ce moment.",
+        emoji: "*",
+        createdAt: new Date(Date.now() - 1000 * 60 * 150).toISOString(),
+      },
+    ],
   },
 ];
 
@@ -146,6 +179,8 @@ export default function App() {
   const [viewedMedia, setViewedMedia] = useState<string[]>([]);
   const [lastActiveAt, setLastActiveAt] = useState(new Date().toISOString());
   const [composerOpen, setComposerOpen] = useState(false);
+  const [replyTargetId, setReplyTargetId] = useState<string | null>(null);
+  const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
 
   const presence = useMemo(() => computePresence(traces, lastActiveAt), [lastActiveAt, traces]);
@@ -154,6 +189,10 @@ export default function App() {
     [traces],
   );
   const myTraces = useMemo(() => sortedTraces.filter((trace) => trace.isMine), [sortedTraces]);
+  const selectedTrace = useMemo(
+    () => sortedTraces.find((trace) => trace.id === selectedTraceId),
+    [selectedTraceId, sortedTraces],
+  );
 
   useEffect(() => {
     async function loadState() {
@@ -199,12 +238,31 @@ export default function App() {
     setComposerOpen(false);
   }
 
-  function answerTrace(trace: Trace) {
+  function answerTrace(trace: Trace, text?: string, emoji?: string) {
+    const nextComment =
+      text || emoji
+        ? {
+            id: `comment-${Date.now()}`,
+            author: "Ness",
+            text: text?.trim() || "A reagi a cette trace.",
+            emoji,
+            createdAt: new Date().toISOString(),
+          }
+        : undefined;
+
     setLastActiveAt(new Date().toISOString());
     setTraces((current) =>
-      current.map((item) => (item.id === trace.id ? { ...item, replies: item.replies + 1 } : item)),
+      current.map((item) =>
+        item.id === trace.id
+          ? {
+              ...item,
+              comments: nextComment ? [...(item.comments ?? []), nextComment] : item.comments ?? [],
+              replies: item.replies + 1,
+            }
+          : item,
+      ),
     );
-    Alert.alert("Reponse envoyee", `Tu viens de repondre a ${trace.author}.`);
+    setReplyTargetId(null);
   }
 
   function openMedia(trace: Trace) {
@@ -233,12 +291,18 @@ export default function App() {
         {view === "home" && (
           <ScrollView contentContainerStyle={styles.screen}>
             <ScreenTitle label="Accueil" title="Dernieres traces" />
+            {selectedTrace && (
+              <CommentsPanel close={() => setSelectedTraceId(null)} trace={selectedTrace} />
+            )}
             <View style={styles.traceList}>
               {sortedTraces.map((trace) => (
                 <TraceCard
                   key={trace.id}
-                  onAnswer={() => answerTrace(trace)}
+                  onAnswer={(text, emoji) => answerTrace(trace, text, emoji)}
+                  onLongPress={() => setReplyTargetId((current) => (current === trace.id ? null : trace.id))}
                   onOpenMedia={() => openMedia(trace)}
+                  onPress={() => setSelectedTraceId((current) => (current === trace.id ? null : trace.id))}
+                  replying={replyTargetId === trace.id}
                   trace={trace}
                   viewed={viewedMedia.includes(trace.id)}
                 />
@@ -304,8 +368,11 @@ export default function App() {
                     <TraceCard
                       compact
                       key={trace.id}
-                      onAnswer={() => answerTrace(trace)}
+                      onAnswer={(text, emoji) => answerTrace(trace, text, emoji)}
+                      onLongPress={() => setReplyTargetId((current) => (current === trace.id ? null : trace.id))}
                       onOpenMedia={() => openMedia(trace)}
+                      onPress={() => setSelectedTraceId((current) => (current === trace.id ? null : trace.id))}
+                      replying={replyTargetId === trace.id}
                       trace={trace}
                       viewed={viewedMedia.includes(trace.id)}
                     />
@@ -383,23 +450,65 @@ function MemoryMap({ traces }: { traces: Trace[] }) {
   );
 }
 
+function CommentsPanel({ close, trace }: { close: () => void; trace: Trace }) {
+  const comments = trace.comments ?? [];
+
+  return (
+    <View style={styles.commentsPanel}>
+      <View style={styles.commentsTop}>
+        <View>
+          <Text style={styles.commentsLabel}>Commentaires laisses</Text>
+          <Text style={styles.commentsTitle}>{trace.author}</Text>
+        </View>
+        <Pressable onPress={close} style={styles.commentsClose}>
+          <Text style={styles.commentsCloseText}>x</Text>
+        </Pressable>
+      </View>
+
+      {comments.length ? (
+        comments.map((comment) => (
+          <View key={comment.id} style={styles.commentRow}>
+            <Text style={styles.commentEmoji}>{comment.emoji || "-"}</Text>
+            <View style={styles.commentBody}>
+              <Text style={styles.commentAuthor}>{comment.author}</Text>
+              <Text style={styles.commentText}>{comment.text}</Text>
+            </View>
+          </View>
+        ))
+      ) : (
+        <Text style={styles.commentsEmpty}>Aucun commentaire pour l'instant.</Text>
+      )}
+    </View>
+  );
+}
+
 function TraceCard({
   compact,
   onAnswer,
+  onLongPress,
   onOpenMedia,
+  onPress,
+  replying,
   trace,
   viewed,
 }: {
   compact?: boolean;
-  onAnswer: () => void;
+  onAnswer: (text?: string, emoji?: string) => void;
+  onLongPress: () => void;
   onOpenMedia: () => void;
+  onPress: () => void;
+  replying: boolean;
   trace: Trace;
   viewed: boolean;
 }) {
   const hasMedia = Boolean(trace.mediaKind);
+  const interactions = trace.replies + (trace.comments?.length ?? 0);
 
   return (
-    <View
+    <Pressable
+      delayLongPress={2000}
+      onLongPress={onLongPress}
+      onPress={onPress}
       style={[
         styles.traceCard,
         hasMedia && styles.traceCardMedia,
@@ -440,10 +549,51 @@ function TraceCard({
           {[trace.mood, trace.place].filter(Boolean).join(" · ") || "trace simple"}
         </Text>
         {!trace.isMine && (
-          <Pressable onPress={onAnswer} style={styles.replyButton}>
-            <Text style={styles.replyText}>{trace.replies ? `${trace.replies} reponses` : "Repondre"}</Text>
+          <Pressable onPress={onLongPress} style={styles.replyButton}>
+            <Text style={styles.replyText}>{interactions} interactions</Text>
           </Pressable>
         )}
+      </View>
+
+      {replying && <TraceReplyBox onAnswer={onAnswer} />}
+    </Pressable>
+  );
+}
+
+function TraceReplyBox({ onAnswer }: { onAnswer: (text?: string, emoji?: string) => void }) {
+  const [text, setText] = useState("");
+  const [emoji, setEmoji] = useState<string | undefined>();
+
+  function submit() {
+    onAnswer(text, emoji);
+    setText("");
+    setEmoji(undefined);
+  }
+
+  return (
+    <View style={styles.replyComposer}>
+      <View style={styles.emojiRow}>
+        {["+", "!", "*", "?"].map((item) => (
+          <Pressable
+            key={item}
+            onPress={() => setEmoji(item)}
+            style={[styles.emojiButton, emoji === item && styles.emojiButtonActive]}
+          >
+            <Text style={[styles.emojiText, emoji === item && styles.emojiTextActive]}>{item}</Text>
+          </Pressable>
+        ))}
+      </View>
+      <View style={styles.replyInputRow}>
+        <TextInput
+          onChangeText={setText}
+          placeholder="Repondre directement..."
+          placeholderTextColor="#A4A09A"
+          style={styles.replyInput}
+          value={text}
+        />
+        <Pressable onPress={submit} style={styles.replySend}>
+          <Text style={styles.replySendText}>OK</Text>
+        </Pressable>
       </View>
     </View>
   );
@@ -521,8 +671,12 @@ function TraceComposer({
 
   return (
     <Modal animationType="fade" onRequestClose={closeAndReset} transparent visible={visible}>
-      <View style={styles.composerBackdrop}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.composerBackdrop}
+      >
         <View style={styles.composerCard}>
+          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <View style={styles.composerTop}>
             <View>
               <Text style={styles.composerLabel}>Laisser une trace</Text>
@@ -573,8 +727,9 @@ function TraceComposer({
           <Pressable onPress={submit} style={({ pressed }) => [styles.depositButton, pressed && styles.pressed]}>
             <Text style={styles.depositText}>Deposer la trace</Text>
           </Pressable>
+          </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -620,10 +775,97 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "900",
   },
+  commentAuthor: {
+    color: ink,
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  commentBody: {
+    flex: 1,
+  },
+  commentEmoji: {
+    backgroundColor: ink,
+    borderRadius: 999,
+    color: yellow,
+    fontSize: 14,
+    fontWeight: "900",
+    height: 28,
+    lineHeight: 28,
+    overflow: "hidden",
+    textAlign: "center",
+    width: 28,
+  },
+  commentRow: {
+    alignItems: "flex-start",
+    backgroundColor: faint,
+    borderColor: line,
+    borderRadius: 18,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 10,
+    padding: 12,
+  },
+  commentsClose: {
+    alignItems: "center",
+    backgroundColor: paper,
+    borderColor: line,
+    borderRadius: 16,
+    borderWidth: 1,
+    height: 32,
+    justifyContent: "center",
+    width: 32,
+  },
+  commentsCloseText: {
+    color: ink,
+    fontSize: 18,
+    fontWeight: "900",
+  },
+  commentsEmpty: {
+    color: muted,
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  commentsLabel: {
+    color: muted,
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 1.4,
+    textTransform: "uppercase",
+  },
+  commentsPanel: {
+    backgroundColor: paper,
+    borderColor: deepLine,
+    borderRadius: 28,
+    borderWidth: 1,
+    gap: 10,
+    padding: 14,
+    shadowColor: ink,
+    shadowOffset: { height: 10, width: 0 },
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+  },
+  commentsTitle: {
+    color: ink,
+    fontSize: 20,
+    fontWeight: "900",
+    marginTop: 3,
+  },
+  commentsTop: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  commentText: {
+    color: "#2B2926",
+    fontSize: 15,
+    fontWeight: "700",
+    lineHeight: 21,
+    marginTop: 2,
+  },
   composeButton: {
     alignItems: "center",
-    backgroundColor: ink,
-    borderColor: "rgba(255,255,255,0.76)",
+    backgroundColor: yellow,
+    borderColor: "rgba(255,255,255,0.84)",
     borderRadius: 28,
     borderWidth: 4,
     bottom: 86,
@@ -633,19 +875,19 @@ const styles = StyleSheet.create({
     left: "50%",
     marginLeft: -36,
     position: "absolute",
-    shadowColor: ink,
-    shadowOpacity: 0.22,
+    shadowColor: yellow,
+    shadowOpacity: 0.34,
     shadowRadius: 18,
     width: 72,
   },
   composePlus: {
-    color: paper,
+    color: ink,
     fontSize: 28,
     fontWeight: "800",
     lineHeight: 30,
   },
   composeText: {
-    color: paper,
+    color: ink,
     fontSize: 11,
     fontWeight: "900",
     marginTop: -2,
@@ -686,13 +928,13 @@ const styles = StyleSheet.create({
   },
   depositButton: {
     alignItems: "center",
-    backgroundColor: ink,
+    backgroundColor: yellow,
     borderRadius: 24,
     marginTop: 16,
     paddingVertical: 17,
   },
   depositText: {
-    color: paper,
+    color: ink,
     fontSize: 16,
     fontWeight: "900",
   },
@@ -714,6 +956,32 @@ const styles = StyleSheet.create({
     color: ink,
     fontSize: 18,
     fontWeight: "900",
+  },
+  emojiButton: {
+    alignItems: "center",
+    backgroundColor: paper,
+    borderColor: line,
+    borderRadius: 999,
+    borderWidth: 1,
+    height: 38,
+    justifyContent: "center",
+    width: 38,
+  },
+  emojiButtonActive: {
+    backgroundColor: yellow,
+    borderColor: yellow,
+  },
+  emojiRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  emojiText: {
+    color: ink,
+    fontSize: 16,
+    fontWeight: "900",
+  },
+  emojiTextActive: {
+    color: ink,
   },
   friendAvatar: {
     alignItems: "center",
@@ -807,7 +1075,7 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   mapDot: {
-    backgroundColor: ink,
+    backgroundColor: yellow,
     borderColor: paper,
     borderRadius: 999,
     borderWidth: 4,
@@ -851,15 +1119,15 @@ const styles = StyleSheet.create({
     transform: [{ rotate: "31deg" }],
   },
   mediaBadge: {
-    backgroundColor: ink,
-    borderColor: deepLine,
+    backgroundColor: softYellow,
+    borderColor: yellow,
     borderRadius: 999,
     borderWidth: 1,
     paddingHorizontal: 10,
     paddingVertical: 7,
   },
   mediaBadgeText: {
-    color: paper,
+    color: ink,
     fontSize: 11,
     fontWeight: "900",
   },
@@ -880,8 +1148,8 @@ const styles = StyleSheet.create({
     padding: 15,
   },
   mediaPickerActive: {
-    backgroundColor: smoke,
-    borderColor: deepLine,
+    backgroundColor: softYellow,
+    borderColor: yellow,
   },
   mediaPickerText: {
     color: muted,
@@ -940,7 +1208,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   presenceFill: {
-    backgroundColor: ink,
+    backgroundColor: yellow,
     borderRadius: 999,
     height: "100%",
   },
@@ -955,10 +1223,51 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.97 }],
   },
   replyButton: {
-    backgroundColor: faint,
+    backgroundColor: softYellow,
+    borderColor: yellow,
     borderRadius: 999,
+    borderWidth: 1,
     paddingHorizontal: 11,
     paddingVertical: 8,
+  },
+  replyComposer: {
+    backgroundColor: faint,
+    borderColor: line,
+    borderRadius: 22,
+    borderWidth: 1,
+    gap: 10,
+    marginTop: 14,
+    padding: 12,
+  },
+  replyInput: {
+    backgroundColor: paper,
+    borderColor: line,
+    borderRadius: 16,
+    borderWidth: 1,
+    color: ink,
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "800",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  replyInputRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+  replySend: {
+    alignItems: "center",
+    backgroundColor: ink,
+    borderRadius: 15,
+    height: 42,
+    justifyContent: "center",
+    width: 48,
+  },
+  replySendText: {
+    color: paper,
+    fontSize: 12,
+    fontWeight: "900",
   },
   replyText: {
     color: ink,
@@ -978,7 +1287,7 @@ const styles = StyleSheet.create({
     paddingTop: 18,
   },
   sectionLabel: {
-    color: muted,
+    color: ink,
     fontSize: 12,
     fontWeight: "900",
     letterSpacing: 2,
@@ -1029,6 +1338,8 @@ const styles = StyleSheet.create({
   },
   tabActive: {
     backgroundColor: ink,
+    borderColor: yellow,
+    borderWidth: 2,
   },
   tabText: {
     color: "#94908A",
@@ -1058,8 +1369,8 @@ const styles = StyleSheet.create({
     width: 38,
   },
   traceAvatarMedia: {
-    backgroundColor: deepLine,
-    borderColor: "#C7C4BE",
+    backgroundColor: ink,
+    borderColor: yellow,
     borderWidth: 2,
   },
   traceAvatarText: {
@@ -1073,7 +1384,7 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     borderWidth: 1,
     overflow: "hidden",
-    padding: 16,
+    padding: 15,
     shadowColor: ink,
     shadowOffset: { height: 10, width: 0 },
     shadowOpacity: 0.045,
@@ -1083,7 +1394,7 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   traceCardMedia: {
-    borderColor: deepLine,
+    borderColor: yellow,
     shadowColor: ink,
     shadowOpacity: 0.08,
   },
@@ -1124,7 +1435,7 @@ const styles = StyleSheet.create({
     fontSize: 19,
     fontWeight: "700",
     lineHeight: 27,
-    marginTop: 15,
+    marginTop: 13,
   },
   traceTop: {
     alignItems: "center",
@@ -1140,8 +1451,8 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
   },
   visibilityPillActive: {
-    backgroundColor: ink,
-    borderColor: ink,
+    backgroundColor: yellow,
+    borderColor: yellow,
   },
   visibilityRow: {
     flexDirection: "row",
@@ -1155,7 +1466,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   visibilityTextActive: {
-    color: paper,
+    color: ink,
   },
   youAvatar: {
     alignItems: "center",
