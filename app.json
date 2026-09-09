@@ -6,7 +6,9 @@
     "orientation": "portrait",
     "scheme": "waya",
     "userInterfaceStyle": "light",
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": false,
       "infoPlist": {
@@ -25,7 +27,8 @@
       }
     },
     "plugins": [
-      "expo-image-picker"
+      "expo-image-picker",
+      "expo-asset"
     ]
   }
 }
