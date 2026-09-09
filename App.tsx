@@ -60,8 +60,8 @@ const line = "#E1DFDA";
 const deepLine = "#141414";
 const muted = "#7D7972";
 const faint = "#F3F2EF";
-const yellow = "#F3C84B";
-const softYellow = "#FFF7D8";
+const violet = "#8B5CF6";
+const softViolet = "#F4EFFF";
 
 const starterTraces: Trace[] = [
   {
@@ -130,6 +130,7 @@ const starterTraces: Trace[] = [
 ];
 
 const friends = ["As", "Nolan", "Zer", "Maya", "Yanis", "Lina"];
+const friendTimes = ["18 min", "1 h", "2 h", "hier", "2 j", "3 j"];
 const mapDots = [
   { left: 58, top: 52 },
   { left: 214, top: 34 },
@@ -291,9 +292,6 @@ export default function App() {
         {view === "home" && (
           <ScrollView contentContainerStyle={styles.screen}>
             <ScreenTitle label="Accueil" title="Dernieres traces" />
-            {selectedTrace && (
-              <CommentsPanel close={() => setSelectedTraceId(null)} trace={selectedTrace} />
-            )}
             <View style={styles.traceList}>
               {sortedTraces.map((trace) => (
                 <TraceCard
@@ -313,7 +311,7 @@ export default function App() {
 
         {view === "circle" && (
           <ScrollView contentContainerStyle={styles.screen}>
-            <ScreenTitle label="Entourage" title="Les gens qui comptent" />
+            <ScreenTitle label="Entourage" title="Ceux qui comptent" />
             <View style={styles.peopleGrid}>
               {friends.map((name, index) => (
                 <View key={name} style={styles.friendCard}>
@@ -322,9 +320,7 @@ export default function App() {
                   </View>
                   <View style={styles.friendInfo}>
                     <Text style={styles.friendName}>{name}</Text>
-                    <Text style={styles.friendMeta}>
-                      {index % 2 === 0 ? "A laisse une trace aujourd'hui" : "Silencieux depuis hier"}
-                    </Text>
+                    <Text style={styles.friendMeta}>{friendTimes[index]}</Text>
                   </View>
                   <View style={styles.friendSignal} />
                 </View>
@@ -403,6 +399,16 @@ export default function App() {
         </View>
       </View>
 
+      {selectedTrace && (
+        <TraceOverlay
+          close={() => setSelectedTraceId(null)}
+          onAnswer={(text, emoji) => answerTrace(selectedTrace, text, emoji)}
+          onLongPress={() => setReplyTargetId(selectedTrace.id)}
+          replying={replyTargetId === selectedTrace.id}
+          trace={selectedTrace}
+        />
+      )}
+
       <TraceComposer close={() => setComposerOpen(false)} onCreate={addTrace} visible={composerOpen} />
     </SafeAreaView>
   );
@@ -450,35 +456,59 @@ function MemoryMap({ traces }: { traces: Trace[] }) {
   );
 }
 
-function CommentsPanel({ close, trace }: { close: () => void; trace: Trace }) {
+function TraceOverlay({
+  close,
+  onAnswer,
+  onLongPress,
+  replying,
+  trace,
+}: {
+  close: () => void;
+  onAnswer: (text?: string, emoji?: string) => void;
+  onLongPress: () => void;
+  replying: boolean;
+  trace: Trace;
+}) {
   const comments = trace.comments ?? [];
+  const interactions = trace.replies + comments.length;
 
   return (
-    <View style={styles.commentsPanel}>
-      <View style={styles.commentsTop}>
-        <View>
-          <Text style={styles.commentsLabel}>Commentaires laisses</Text>
-          <Text style={styles.commentsTitle}>{trace.author}</Text>
-        </View>
-        <Pressable onPress={close} style={styles.commentsClose}>
-          <Text style={styles.commentsCloseText}>x</Text>
-        </Pressable>
-      </View>
-
-      {comments.length ? (
-        comments.map((comment) => (
-          <View key={comment.id} style={styles.commentRow}>
-            <Text style={styles.commentEmoji}>{comment.emoji || "-"}</Text>
-            <View style={styles.commentBody}>
-              <Text style={styles.commentAuthor}>{comment.author}</Text>
-              <Text style={styles.commentText}>{comment.text}</Text>
+    <Modal animationType="fade" onRequestClose={close} transparent visible>
+      <Pressable onPress={close} style={styles.overlayBackdrop}>
+        <Pressable delayLongPress={850} onLongPress={onLongPress} style={styles.overlaySheet}>
+          <View style={styles.overlayTrace}>
+            <View style={styles.traceTop}>
+              <View style={styles.traceAuthorWrap}>
+                <View style={styles.traceAvatar}>
+                  <Text style={styles.traceAvatarText}>{trace.author[0]}</Text>
+                </View>
+                <View>
+                  <Text style={styles.traceAuthor}>{trace.author}</Text>
+                  <Text style={styles.traceMeta}>{formatTraceTime(trace.createdAt)}</Text>
+                </View>
+              </View>
+              <Text style={styles.overlayInteraction}>{interactions} interactions</Text>
             </View>
+            <Text style={styles.overlayText}>{trace.text}</Text>
+            {replying && <TraceReplyBox onAnswer={onAnswer} />}
           </View>
-        ))
-      ) : (
-        <Text style={styles.commentsEmpty}>Aucun commentaire pour l'instant.</Text>
-      )}
-    </View>
+
+          {comments.length > 0 && (
+            <View style={styles.commentList}>
+              {comments.map((comment) => (
+                <View key={comment.id} style={styles.commentRow}>
+                  <Text style={styles.commentEmoji}>{comment.emoji || "-"}</Text>
+                  <View style={styles.commentBody}>
+                    <Text style={styles.commentAuthor}>{comment.author}</Text>
+                    <Text style={styles.commentText}>{comment.text}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -506,7 +536,7 @@ function TraceCard({
 
   return (
     <Pressable
-      delayLongPress={2000}
+      delayLongPress={850}
       onLongPress={onLongPress}
       onPress={onPress}
       style={[
@@ -524,9 +554,7 @@ function TraceCard({
           </View>
           <View>
             <Text style={styles.traceAuthor}>{trace.author}</Text>
-            <Text style={styles.traceMeta}>
-              {formatTraceTime(trace.createdAt)} · {visibilityLabel(trace.visibility)}
-            </Text>
+            <Text style={styles.traceMeta}>{formatTraceTime(trace.createdAt)}</Text>
           </View>
         </View>
         {hasMedia && (
@@ -545,9 +573,6 @@ function TraceCard({
       )}
 
       <View style={styles.traceFooter}>
-        <Text style={styles.traceContext}>
-          {[trace.mood, trace.place].filter(Boolean).join(" · ") || "trace simple"}
-        </Text>
         {!trace.isMine && (
           <Pressable onPress={onLongPress} style={styles.replyButton}>
             <Text style={styles.replyText}>{interactions} interactions</Text>
@@ -612,7 +637,6 @@ function TraceComposer({
   const [visibility, setVisibility] = useState<Visibility>("circle");
   const [mediaKind, setMediaKind] = useState<MediaKind | undefined>();
   const [mediaUri, setMediaUri] = useState<string | undefined>();
-  const [mood, setMood] = useState("");
   const [place, setPlace] = useState("");
 
   function reset() {
@@ -620,7 +644,6 @@ function TraceComposer({
     setVisibility("circle");
     setMediaKind(undefined);
     setMediaUri(undefined);
-    setMood("");
     setPlace("");
   }
 
@@ -656,7 +679,6 @@ function TraceComposer({
     onCreate({
       text: cleanText || "Un moment depose sans phrase.",
       visibility,
-      mood: mood.trim() || undefined,
       place: place.trim() || undefined,
       mediaKind,
       mediaUri,
@@ -697,13 +719,6 @@ function TraceComposer({
           />
 
           <View style={styles.inlineInputs}>
-            <TextInput
-              onChangeText={setMood}
-              placeholder="humeur"
-              placeholderTextColor="#A4A09A"
-              style={styles.miniInput}
-              value={mood}
-            />
             <TextInput
               onChangeText={setPlace}
               placeholder="lieu approx."
@@ -786,7 +801,7 @@ const styles = StyleSheet.create({
   commentEmoji: {
     backgroundColor: ink,
     borderRadius: 999,
-    color: yellow,
+    color: violet,
     fontSize: 14,
     fontWeight: "900",
     height: 28,
@@ -805,6 +820,10 @@ const styles = StyleSheet.create({
     gap: 10,
     padding: 12,
   },
+  commentList: {
+    gap: 10,
+    marginTop: 12,
+  },
   commentsClose: {
     alignItems: "center",
     backgroundColor: paper,
@@ -819,11 +838,6 @@ const styles = StyleSheet.create({
     color: ink,
     fontSize: 18,
     fontWeight: "900",
-  },
-  commentsEmpty: {
-    color: muted,
-    fontSize: 14,
-    fontWeight: "800",
   },
   commentsLabel: {
     color: muted,
@@ -846,7 +860,7 @@ const styles = StyleSheet.create({
   },
   commentsTitle: {
     color: ink,
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "900",
     marginTop: 3,
   },
@@ -864,7 +878,7 @@ const styles = StyleSheet.create({
   },
   composeButton: {
     alignItems: "center",
-    backgroundColor: yellow,
+    backgroundColor: violet,
     borderColor: "rgba(255,255,255,0.84)",
     borderRadius: 28,
     borderWidth: 4,
@@ -875,19 +889,19 @@ const styles = StyleSheet.create({
     left: "50%",
     marginLeft: -36,
     position: "absolute",
-    shadowColor: yellow,
-    shadowOpacity: 0.34,
+    shadowColor: violet,
+    shadowOpacity: 0.28,
     shadowRadius: 18,
     width: 72,
   },
   composePlus: {
-    color: ink,
+    color: paper,
     fontSize: 28,
     fontWeight: "800",
     lineHeight: 30,
   },
   composeText: {
-    color: ink,
+    color: paper,
     fontSize: 11,
     fontWeight: "900",
     marginTop: -2,
@@ -915,7 +929,7 @@ const styles = StyleSheet.create({
   },
   composerTitle: {
     color: ink,
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "900",
     lineHeight: 28,
     marginTop: 8,
@@ -928,13 +942,13 @@ const styles = StyleSheet.create({
   },
   depositButton: {
     alignItems: "center",
-    backgroundColor: yellow,
+    backgroundColor: violet,
     borderRadius: 24,
     marginTop: 16,
     paddingVertical: 17,
   },
   depositText: {
-    color: ink,
+    color: paper,
     fontSize: 16,
     fontWeight: "900",
   },
@@ -968,8 +982,8 @@ const styles = StyleSheet.create({
     width: 38,
   },
   emojiButtonActive: {
-    backgroundColor: yellow,
-    borderColor: yellow,
+    backgroundColor: violet,
+    borderColor: violet,
   },
   emojiRow: {
     flexDirection: "row",
@@ -981,7 +995,7 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   emojiTextActive: {
-    color: ink,
+    color: paper,
   },
   friendAvatar: {
     alignItems: "center",
@@ -1021,7 +1035,7 @@ const styles = StyleSheet.create({
   },
   friendName: {
     color: ink,
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "900",
   },
   friendSignal: {
@@ -1075,7 +1089,7 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   mapDot: {
-    backgroundColor: yellow,
+    backgroundColor: violet,
     borderColor: paper,
     borderRadius: 999,
     borderWidth: 4,
@@ -1119,8 +1133,8 @@ const styles = StyleSheet.create({
     transform: [{ rotate: "31deg" }],
   },
   mediaBadge: {
-    backgroundColor: softYellow,
-    borderColor: yellow,
+    backgroundColor: softViolet,
+    borderColor: violet,
     borderRadius: 999,
     borderWidth: 1,
     paddingHorizontal: 10,
@@ -1148,8 +1162,8 @@ const styles = StyleSheet.create({
     padding: 15,
   },
   mediaPickerActive: {
-    backgroundColor: softYellow,
-    borderColor: yellow,
+    backgroundColor: softViolet,
+    borderColor: violet,
   },
   mediaPickerText: {
     color: muted,
@@ -1201,6 +1215,38 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 24,
   },
+  overlayBackdrop: {
+    backgroundColor: "rgba(8,9,10,0.28)",
+    flex: 1,
+    justifyContent: "center",
+    padding: 18,
+  },
+  overlayInteraction: {
+    color: muted,
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  overlaySheet: {
+    gap: 0,
+  },
+  overlayText: {
+    color: "#1E1D1B",
+    fontSize: 18,
+    fontWeight: "700",
+    lineHeight: 26,
+    marginTop: 14,
+  },
+  overlayTrace: {
+    backgroundColor: paper,
+    borderColor: violet,
+    borderRadius: 30,
+    borderWidth: 1,
+    padding: 17,
+    shadowColor: ink,
+    shadowOffset: { height: 20, width: 0 },
+    shadowOpacity: 0.18,
+    shadowRadius: 28,
+  },
   peopleGrid: {
     gap: 12,
   },
@@ -1208,7 +1254,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   presenceFill: {
-    backgroundColor: yellow,
+    backgroundColor: violet,
     borderRadius: 999,
     height: "100%",
   },
@@ -1223,8 +1269,8 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.97 }],
   },
   replyButton: {
-    backgroundColor: softYellow,
-    borderColor: yellow,
+    backgroundColor: softViolet,
+    borderColor: violet,
     borderRadius: 999,
     borderWidth: 1,
     paddingHorizontal: 11,
@@ -1295,7 +1341,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     color: ink,
-    fontSize: 35,
+    fontSize: 29,
     fontWeight: "900",
     letterSpacing: 0,
     lineHeight: 39,
@@ -1327,7 +1373,7 @@ const styles = StyleSheet.create({
   },
   statValue: {
     color: ink,
-    fontSize: 27,
+    fontSize: 24,
     fontWeight: "900",
   },
   tab: {
@@ -1338,7 +1384,7 @@ const styles = StyleSheet.create({
   },
   tabActive: {
     backgroundColor: ink,
-    borderColor: yellow,
+    borderColor: violet,
     borderWidth: 2,
   },
   tabText: {
@@ -1370,7 +1416,7 @@ const styles = StyleSheet.create({
   },
   traceAvatarMedia: {
     backgroundColor: ink,
-    borderColor: yellow,
+    borderColor: violet,
     borderWidth: 2,
   },
   traceAvatarText: {
@@ -1394,7 +1440,7 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   traceCardMedia: {
-    borderColor: yellow,
+    borderColor: violet,
     shadowColor: ink,
     shadowOpacity: 0.08,
   },
@@ -1432,9 +1478,9 @@ const styles = StyleSheet.create({
   },
   traceText: {
     color: "#2B2926",
-    fontSize: 19,
+    fontSize: 16,
     fontWeight: "700",
-    lineHeight: 27,
+    lineHeight: 23,
     marginTop: 13,
   },
   traceTop: {
@@ -1451,8 +1497,8 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
   },
   visibilityPillActive: {
-    backgroundColor: yellow,
-    borderColor: yellow,
+    backgroundColor: violet,
+    borderColor: violet,
   },
   visibilityRow: {
     flexDirection: "row",
@@ -1466,7 +1512,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   visibilityTextActive: {
-    color: ink,
+    color: paper,
   },
   youAvatar: {
     alignItems: "center",
